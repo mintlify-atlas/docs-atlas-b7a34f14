@@ -248,6 +248,24 @@ class Page < Phlex::HTML
 end
 ```
 
+## Inline SVG Generation
+
+For quick SVG generation without creating a class, use `Phlex.svg`:
+
+```ruby
+svg_string = Phlex.svg do
+  svg viewBox: "0 0 100 100" do
+    circle cx: 50, cy: 50, r: 40, fill: "purple"
+    text x: 50, y: 55, text_anchor: "middle", fill: "white" do
+      "Hi"
+    end
+  end
+end
+# => <svg viewBox="0 0 100 100">...</svg>
+```
+
+This is useful for generating one-off SVGs without the overhead of a component class.
+
 ## Content Type
 
 Phlex::SVG components have their own content type:
