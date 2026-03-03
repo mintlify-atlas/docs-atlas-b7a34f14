@@ -1,0 +1,354 @@
+---
+title: Phlex::Helpers
+description: Internal helper methods for advanced attribute manipulation and keyword argument handling
+---
+
+## Overview
+
+`Phlex::Helpers` is a private module providing utility methods for internal use within Phlex components. While marked as `@api private`, these methods can be useful for advanced component authoring, particularly when dealing with complex attribute merging and keyword argument manipulation.
+
+<Warning>
+This module is marked as `@api private` in the Phlex source code. The methods and their behavior may change between versions without notice. Use with caution.
+</Warning>
+
+## Usage
+
+```ruby
+class MyComponent < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(**attrs)
+    @attrs = attrs
+  end
+
+  def view_template
+    div(**mix({ class: "default" }, @attrs))
+  end
+end
+```
+
+## Methods
+
+### mix
+
+```ruby
+private def mix(*args)
+```
+
+Intelligently merges multiple hash objects with smart attribute combining based on value types. This method is particularly useful for merging HTML attributes where different types need different merge strategies.
+
+<ParamField path="args" type="Hash...">
+  One or more hash objects to merge together
+</ParamField>
+
+**Returns:** `Hash` - A new hash with all arguments merged using type-aware combining rules
+
+#### Merge Rules
+
+The `mix` method uses pattern matching to determine how to combine values with the same key:
+
+| Old Value Type | New Value Type | Result | Example |
+|----------------|----------------|--------|----------|
+| `String` | `String` | Space-separated concatenation | `"foo"` + `"bar"` → `"foo bar"` |
+| `Array` | `Array` | Array concatenation | `["a"]` + `["b"]` → `["a", "b"]` |
+| `Array` | `String` | String appended to array | `["a"]` + `"b"` → `["a", "b"]` |
+| `Array` | `Set` | Set converted to array and concatenated | `["a"]` + `Set["b"]` → `["a", "b"]` |
+| `String` | `Array` | String prepended to array | `"a"` + `["b"]` → `["a", "b"]` |
+| `Set` | `Set` | Set union | `Set["a"]` + `Set["b"]` → `Set["a", "b"]` |
+| `Set` | `Array` | Set converted to array and concatenated | `Set["a"]` + `["b"]` → `["a", "b"]` |
+| `Set` | `String` | Set converted to array, string appended | `Set["a"]` + `"b"` → `["a", "b"]` |
+| `String` | `Set` | String prepended to set as array | `"a"` + `Set["b"]` → `["a", "b"]` |
+| `Hash` | `Hash` | Recursive merge with mix | `{a: 1}` + `{b: 2}` → `{a: 1, b: 2}` |
+| `Array` | `Hash` | Array moved to `_:` key | `["a"]` + `{b: 1}` → `{_: ["a"], b: 1}` |
+| `Hash` | `Array` | Hash preserved, array added to `_:` | `{a: 1}` + `["b"]` → `{a: 1, _: ["b"]}` |
+| Any | `nil` | Old value preserved | `"foo"` + `nil` → `"foo"` |
+| Any | Other | New value replaces old | `"foo"` + `123` → `123` |
+
+#### Override Keys
+
+Keys ending with `!` (bang) will override the merge behavior and replace the existing value entirely. The `!` is stripped from the final key name.
+
+```ruby
+mix({ class: "foo" }, { class!: "bar" })
+# => { class: "bar" }
+```
+
+### grab
+
+```ruby
+private def grab(**bindings)
+```
+
+Extracts values from keyword arguments, returning a single value if one argument is provided, or an array of values if multiple arguments are provided.
+
+<ParamField path="bindings" type="Hash">
+  Keyword arguments to extract values from
+</ParamField>
+
+**Returns:** 
+- Single value if one keyword argument provided
+- `Array` of values if multiple keyword arguments provided
+
+## Examples
+
+### Using mix for Class Names
+
+```ruby
+class Button < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(**attrs)
+    @attrs = attrs
+  end
+
+  def view_template
+    button(**mix({ class: "btn" }, @attrs)) { yield }
+  end
+end
+
+# Usage:
+Button(class: "primary") { "Click" }
+# Renders: <button class="btn primary">Click</button>
+```
+
+### String Concatenation
+
+```ruby
+mix({ class: "foo" }, { class: "bar" })
+# => { class: "foo bar" }
+```
+
+### Array Merging
+
+```ruby
+mix({ class: ["foo"] }, { class: ["bar"] })
+# => { class: ["foo", "bar"] }
+
+mix({ class: ["foo"] }, { class: "bar" })
+# => { class: ["foo", "bar"] }
+```
+
+### Set Operations
+
+```ruby
+mix({ class: Set["foo"] }, { class: Set["bar"] })
+# => { class: Set["foo", "bar"] }
+
+mix({ class: Set["foo"] }, { class: "bar" })
+# => { class: ["foo", "bar"] }
+```
+
+### Nested Hash Merging
+
+```ruby
+mix(
+  { data: { controller: "foo" } },
+  { data: { controller: "bar" } }
+)
+# => { data: { controller: "foo bar" } }
+
+mix(
+  { data: { controller: "foo" } },
+  { data: { action: "click" } }
+)
+# => { data: { controller: "foo", action: "click" } }
+```
+
+### Hash and Array Mixing
+
+```ruby
+mix(
+  { data: ["foo"] },
+  { data: { controller: "bar" } }
+)
+# => { data: { _: ["foo"], controller: "bar" } }
+```
+
+### Override with Bang Keys
+
+```ruby
+mix({ class: "foo" }, { class!: "bar" })
+# => { class: "bar" }
+
+mix(
+  { class: "btn" },
+  { class: "primary" },
+  { class!: "custom" }
+)
+# => { class: "custom" }
+```
+
+### Handling Nil Values
+
+```ruby
+mix({ class: "foo" }, { class: nil })
+# => { class: "foo" }
+
+mix({ class: nil }, { class: "bar" })
+# => { class: "bar" }
+```
+
+### Using grab for Single Values
+
+```ruby
+class Component < Phlex::HTML
+  include Phlex::Helpers
+
+  def call_with_attrs(**attrs)
+    css_class = grab(class: attrs.delete(:class))
+    div(class: css_class) { "Content" }
+  end
+end
+
+# Single binding returns the value directly
+grab(class: "foo")
+# => "foo"
+```
+
+### Using grab for Multiple Values
+
+```ruby
+class Component < Phlex::HTML
+  include Phlex::Helpers
+
+  def conditional_render(**attrs)
+    css_class, condition = grab(
+      class: attrs.delete(:class),
+      if: attrs.delete(:if)
+    )
+
+    div(class: css_class) { yield } if condition
+  end
+end
+
+# Multiple bindings return an array
+grab(class: "foo", if: true)
+# => ["foo", true]
+```
+
+## Advanced Use Cases
+
+### Component with Default Attributes
+
+```ruby
+class Card < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(**attrs)
+    @attrs = attrs
+  end
+
+  def view_template
+    article(**mix(
+      { class: "card", data: { controller: "card" } },
+      @attrs
+    )) do
+      yield
+    end
+  end
+end
+
+# Usage:
+Card(class: "featured", data: { action: "click" })
+# Renders with merged attributes:
+# class="card featured"
+# data-controller="card"
+# data-action="click"
+```
+
+### Conditional Attribute Merging
+
+```ruby
+class Alert < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(type:, **attrs)
+    @type = type
+    @attrs = attrs
+  end
+
+  def view_template
+    base_attrs = { class: "alert", role: "alert" }
+    type_attrs = { class: "alert-#{@type}" }
+
+    div(**mix(base_attrs, type_attrs, @attrs)) { yield }
+  end
+end
+
+# Usage:
+Alert(type: "success", class: "mt-4")
+# Renders: class="alert alert-success mt-4" role="alert"
+```
+
+### Data Attribute Composition
+
+```ruby
+class Dropdown < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(**attrs)
+    @attrs = attrs
+  end
+
+  def view_template
+    div(**mix(
+      { 
+        data: { 
+          controller: "dropdown",
+          action: "click->dropdown#toggle"
+        }
+      },
+      @attrs
+    )) do
+      yield
+    end
+  end
+end
+
+# Usage:
+Dropdown(data: { controller: "tooltip", position: "top" })
+# Results in:
+# data-controller="dropdown tooltip"
+# data-action="click->dropdown#toggle"
+# data-position="top"
+```
+
+### Extracting Multiple Attrs with grab
+
+```ruby
+class Modal < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(**attrs)
+    @title, @visible = grab(title: attrs.delete(:title), visible: attrs.delete(:visible))
+    @attrs = attrs
+  end
+
+  def view_template
+    return unless @visible
+
+    div(**mix({ class: "modal" }, @attrs)) do
+      h2 { @title } if @title
+      yield
+    end
+  end
+end
+```
+
+## Best Practices
+
+1. **Use mix for attribute merging** - Perfect for components that accept user-provided attributes
+2. **Leverage bang keys for overrides** - Use `class!:` when you need complete control
+3. **Handle nil gracefully** - `mix` automatically handles nil values, keeping existing values
+4. **Be cautious with private APIs** - These methods are marked private and may change
+5. **Use grab for destructuring** - Clean way to extract specific keyword arguments
+6. **Test your merge logic** - Complex attribute merging can have unexpected results
+
+## Caveats
+
+<Warning>
+- These methods are marked as `@api private` and may change without notice
+- The merge behavior is opinionated and may not suit all use cases  
+- Override keys with `!` are processed after merging, affecting all previous values
+- When mixing incompatible types, the new value typically wins (except for nil)
+</Warning>

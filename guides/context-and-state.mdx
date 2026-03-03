@@ -1,0 +1,303 @@
+---
+title: Context & State
+description: Learn how to pass data between Phlex components using context for shared state management
+---
+
+Phlex's context system allows you to pass data down through the component tree without explicitly threading it through every component.
+
+## Basic Context Usage
+
+Pass context when rendering a component:
+
+```ruby
+class PageLayout < Phlex::HTML
+  def view_template
+    render Header.new
+  end
+end
+
+class Header < Phlex::HTML
+  def view_template
+    h1 { context[:heading] }
+  end
+end
+
+# Render with context
+PageLayout.new.call(context: { heading: "Hello, World!" })
+# => <h1>Hello, World!</h1>
+```
+
+## Setting Context in Parent Components
+
+You can set context values in a parent component that will be accessible to all child components:
+
+```ruby
+class Layout < Phlex::HTML
+  def view_template
+    context[:heading] = "Welcome"
+    render Header.new
+  end
+end
+
+class Header < Phlex::HTML
+  def view_template
+    h1 { context[:heading] }
+  end
+end
+
+Layout.new.call
+# => <h1>Welcome</h1>
+```
+
+## Accessing Context
+
+The `context` method returns a hash that's shared across all components in the render tree:
+
+```ruby
+class Navigation < Phlex::HTML
+  def view_template
+    nav do
+      ul do
+        li { a(href: "/") { "Home" } }
+        li { a(href: "/about") { "About" } } if context[:show_about]
+        li { a(href: "/admin") { "Admin" } } if context[:current_user]&.admin?
+      end
+    end
+  end
+end
+```
+
+## Context Scope
+
+Context is scoped to the render tree - it's available from when rendering starts until rendering completes:
+
+```ruby
+class Component < Phlex::HTML
+  def initialize
+    # ❌ Can't access context here - not rendering yet
+    # context[:value] # Raises Phlex::ArgumentError
+  end
+
+  def view_template
+    # ✅ Can access context during rendering
+    div { context[:value] }
+  end
+
+  def after_render
+    # ✅ Can access context in lifecycle hooks
+    log_render if context[:debug]
+  end
+end
+```
+
+<Warning>
+  Accessing `context` before rendering starts will raise a `Phlex::ArgumentError` with the message: "You can't access the context before the component has started rendering."
+</Warning>
+
+## Common Patterns
+
+### Current User
+
+Share authentication state across components:
+
+```ruby
+class ApplicationComponent < Phlex::HTML
+  private
+
+  def current_user
+    context[:current_user]
+  end
+end
+
+class UserMenu < ApplicationComponent
+  def view_template
+    if current_user
+      div(class: "user-menu") do
+        span { "Hello, #{current_user.name}" }
+        a(href: "/logout") { "Sign out" }
+      end
+    else
+      a(href: "/login") { "Sign in" }
+    end
+  end
+end
+
+# In your controller/handler
+ApplicationComponent.new.call(context: { current_user: Current.user })
+```
+
+### Request Information
+
+Share request details throughout your component tree:
+
+```ruby
+class Layout < Phlex::HTML
+  def view_template
+    nav do
+      ul do
+        menu_item("Home", "/")
+        menu_item("About", "/about")
+        menu_item("Contact", "/contact")
+      end
+    end
+  end
+
+  private
+
+  def menu_item(label, path)
+    current = context[:request_path] == path
+    li(class: current ? "active" : nil) do
+      a(href: path) { label }
+    end
+  end
+end
+
+# Render with request path
+Layout.new.call(context: { request_path: request.path })
+```
+
+### Feature Flags
+
+Conditionally render features based on flags:
+
+```ruby
+class Dashboard < Phlex::HTML
+  def view_template
+    h1 { "Dashboard" }
+    
+    render Stats.new
+    render NewFeature.new if feature_enabled?(:new_feature)
+  end
+
+  private
+
+  def feature_enabled?(feature)
+    context[:features]&.include?(feature)
+  end
+end
+
+# Enable features per request
+Dashboard.new.call(context: { features: [:new_feature, :beta_ui] })
+```
+
+### Theme Configuration
+
+Share styling preferences:
+
+```ruby
+class ThemedButton < Phlex::HTML
+  def initialize(text)
+    @text = text
+  end
+
+  def view_template
+    button(class: button_classes) { @text }
+  end
+
+  private
+
+  def button_classes
+    theme = context[:theme] || :light
+    case theme
+    when :dark
+      "bg-gray-800 text-white"
+    when :light
+      "bg-white text-gray-800"
+    end
+  end
+end
+```
+
+## Context vs Instance Variables
+
+<CodeGroup>
+
+```ruby Instance Variables
+class Parent < Phlex::HTML
+  def initialize(user)
+    @user = user
+  end
+
+  def view_template
+    # Must explicitly pass user to child
+    render Child.new(@user)
+  end
+end
+
+class Child < Phlex::HTML
+  def initialize(user)
+    @user = user
+  end
+
+  def view_template
+    h1 { @user.name }
+  end
+end
+```
+
+```ruby Context
+class Parent < Phlex::HTML
+  def view_template
+    context[:user] = User.current
+    # Child automatically has access
+    render Child.new
+  end
+end
+
+class Child < Phlex::HTML
+  def view_template
+    h1 { context[:user].name }
+  end
+end
+```
+
+</CodeGroup>
+
+<Tip>
+  Use context for data that many components need (like current user, request info, or theme). Use instance variables for component-specific data.
+</Tip>
+
+## Checking Context Availability
+
+Use the `rendering?` method to check if context is available:
+
+```ruby
+class Component < Phlex::HTML
+  def safe_context_access
+    if rendering?
+      context[:value]
+    else
+      nil
+    end
+  end
+
+  def view_template
+    div { safe_context_access }
+  end
+end
+```
+
+## Context Immutability
+
+Context is mutable during rendering - child components can modify values set by parents:
+
+```ruby
+class Parent < Phlex::HTML
+  def view_template
+    context[:count] = 0
+    render Child.new
+    p { "Count: #{context[:count]}" } # => "Count: 1"
+  end
+end
+
+class Child < Phlex::HTML
+  def view_template
+    context[:count] += 1
+    span { "Child" }
+  end
+end
+```
+
+<Note>
+  While context is mutable, use this sparingly. It's generally better to pass data down rather than have children modify parent context.
+</Note>

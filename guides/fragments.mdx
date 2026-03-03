@@ -1,0 +1,350 @@
+---
+title: Fragment Rendering
+description: Learn how to use fragments for selective rendering and efficient partial updates in Phlex
+---
+
+Fragments allow you to render specific portions of a component without executing the entire component tree. This is powerful for partial page updates, AJAX responses, and performance optimization.
+
+## Basic Fragment Usage
+
+Define fragments using the `fragment` method:
+
+```ruby
+class ArticlePage < Phlex::HTML
+  def view_template
+    h1(id: "before") { "Before" }
+    
+    fragment("target") do
+      h1(id: "target") {
+        plain "Hello"
+        strong { "World" }
+        img(src: "image.jpg")
+      }
+    end
+    
+    h1(id: "after") { "After" }
+  end
+end
+
+# Render just the fragment
+ArticlePage.new.call(fragments: ["target"])
+# => <h1 id="target">Hello<strong>World</strong><img src="image.jpg"></h1>
+```
+
+## Multiple Fragments
+
+You can define multiple fragments and render them selectively:
+
+```ruby
+class Dashboard < Phlex::HTML
+  def view_template
+    doctype
+    div do
+      h1 { "Before" }
+      
+      fragment("stats") do
+        div(id: "stats") do
+          h2 { "Statistics" }
+          p { "Users: 1,234" }
+        end
+      end
+      
+      fragment("chart") do
+        div(id: "chart") do
+          h2 { "Chart" }
+          # Expensive chart rendering
+        end
+      end
+      
+      h1 { "After" }
+    end
+  end
+end
+
+# Render multiple fragments
+Dashboard.new.call(fragments: ["stats", "chart"])
+# => <div id="stats">...</div><div id="chart">...</div>
+```
+
+## Performance Benefits
+
+Fragment rendering halts execution once all requested fragments are found:
+
+```ruby
+class ExpensivePage < Phlex::HTML
+  def initialize(execution_checker = -> {})
+    @execution_checker = execution_checker
+  end
+
+  def view_template
+    div do
+      h1 { "Before" }
+      render ExampleComponent.new { "Should not render" }
+      
+      fragment("target") do
+        h1(id: "target") { "Target content" }
+      end
+      
+      # This code never executes when rendering fragment "target"
+      @execution_checker.call
+      expensive_database_query
+      strong { "Here" }
+    end
+  end
+end
+
+# Only executes code up to and including the fragment
+ExpensivePage.new.call(fragments: ["target"])
+```
+
+<Tip>
+  Phlex stops rendering as soon as all requested fragments are found, making fragment rendering very efficient for large component trees.
+</Tip>
+
+## Nested Fragments
+
+Fragments can be nested within other fragments:
+
+```ruby
+class Page < Phlex::HTML
+  def view_template
+    h1(id: "before") { "Before" }
+    
+    fragment("outer") do
+      div(id: "outer") do
+        h2 { "Outer" }
+        
+        fragment("inner") do
+          h1(id: "inner") { "Inner content" }
+        end
+        
+        p { "More outer content" }
+      end
+    end
+    
+    fragment("after") do
+      h1(id: "after") { "After" }
+    end
+  end
+end
+
+# Render just inner fragment
+Page.new.call(fragments: ["inner"])
+# => <h1 id="inner">Inner content</h1>
+
+# Render outer (includes inner)
+Page.new.call(fragments: ["outer"])
+# => <div id="outer"><h2>Outer</h2><h1 id="inner">Inner content</h1><p>More outer content</p></div>
+```
+
+## Fragments with Void Elements
+
+Fragments work with void elements like `img`, `input`, and `br`:
+
+```ruby
+class ImageGallery < Phlex::HTML
+  def view_template
+    div do
+      h1 { "Before" }
+      
+      fragment("thumbnail") do
+        img(id: "thumbnail", src: "thumb.jpg")
+      end
+      
+      h1 { "After" }
+    end
+  end
+end
+
+ImageGallery.new.call(fragments: ["thumbnail"])
+# => <img id="thumbnail" src="thumb.jpg">
+```
+
+## Fragments with Capture
+
+Fragments inside capture blocks are not selectable from the outside:
+
+```ruby
+class Page < Phlex::HTML
+  def view_template
+    h1(id: "before") { "Before" }
+    
+    fragment("around") do
+      div(id: "around") do
+        captured_content = capture do
+          fragment("inside") do
+            h1(id: "inside") { "Inside" }
+          end
+        end
+        # The captured content is treated as a string
+        raw captured_content
+      end
+    end
+    
+    fragment("after") do
+      h1(id: "after") { "After" }
+    end
+  end
+end
+
+# "inside" fragment is not accessible
+Page.new.call(fragments: ["inside"])
+# => ""
+
+# But "around" includes the captured HTML
+Page.new.call(fragments: ["around"])
+# => <div id="around">&lt;h1 id=&quot;inside&quot;&gt;Inside&lt;/h1&gt;</div>
+```
+
+<Warning>
+  Fragments within `capture` blocks are not independently selectable because capture converts the output to a string.
+</Warning>
+
+## Real-World Examples
+
+### AJAX Partial Updates
+
+```ruby
+class TodoList < Phlex::HTML
+  def initialize(todos)
+    @todos = todos
+  end
+
+  def view_template
+    div(id: "todo-container") do
+      h1 { "My Todos" }
+      
+      fragment("todo-list") do
+        ul(id: "todos") do
+          @todos.each do |todo|
+            fragment("todo-#{todo.id}") do
+              li(id: "todo-#{todo.id}") do
+                span { todo.title }
+                button(data: { action: "delete" }) { "Delete" }
+              end
+            end
+          end
+        end
+      end
+      
+      fragment("todo-count") do
+        p(id: "count") { "#{@todos.count} todos" }
+      end
+    end
+  end
+end
+
+# Update just the list
+TodoList.new(todos).call(fragments: ["todo-list"])
+
+# Update just the count
+TodoList.new(todos).call(fragments: ["todo-count"])
+
+# Update a specific todo
+TodoList.new(todos).call(fragments: ["todo-42"])
+```
+
+### Progressive Enhancement
+
+```ruby
+class ProductCard < Phlex::HTML
+  def initialize(product)
+    @product = product
+  end
+
+  def view_template
+    article(class: "product-card") do
+      # Always rendered
+      h2 { @product.name }
+      
+      # Only load when needed
+      fragment("product-details") do
+        div(class: "details") do
+          p { @product.description }
+          p { "Price: $#{@product.price}" }
+          render ReviewsList.new(@product.reviews)
+        end
+      end
+      
+      button(
+        data: {
+          action: "load-details",
+          fragment: "product-details"
+        }
+      ) { "Show details" }
+    end
+  end
+end
+```
+
+### Caching with Fragments
+
+Combine fragments with caching for maximum efficiency:
+
+```ruby
+class ComplexPage < Phlex::HTML
+  def initialize(page_id)
+    @page_id = page_id
+  end
+
+  def view_template
+    cache(@page_id) do
+      h1 { "Page #{@page_id}" }
+      
+      fragment("content") do
+        div(id: "content") do
+          # Expensive rendering
+          render_markdown(@content)
+        end
+      end
+      
+      fragment("sidebar") do
+        aside(id: "sidebar") do
+          render NavigationMenu.new
+        end
+      end
+    end
+  end
+  
+  private
+  
+  def cache_store
+    @cache_store ||= Phlex::FIFOCacheStore.new
+  end
+end
+
+# First render caches everything
+ComplexPage.new(1).call
+
+# Subsequent fragment renders use cached output
+ComplexPage.new(1).call(fragments: ["content"])
+ComplexPage.new(1).call(fragments: ["sidebar"])
+```
+
+<Note>
+  When you render a fragment from a cached component, Phlex extracts the fragment from the cached HTML without re-executing the Ruby code.
+</Note>
+
+## Best Practices
+
+<Steps>
+  <Step title="Name fragments descriptively">
+    Use clear, semantic names like "user-profile" instead of "section1".
+  </Step>
+  
+  <Step title="Keep fragments focused">
+    Each fragment should represent a logical, independent piece of UI.
+  </Step>
+  
+  <Step title="Add IDs to fragment roots">
+    Include an `id` attribute on the root element of each fragment for easier targeting in JavaScript.
+  </Step>
+  
+  <Step title="Combine with caching">
+    Use fragments with caching to avoid re-executing expensive operations.
+  </Step>
+  
+  <Step title="Document fragment names">
+    Keep track of available fragment names, especially in complex components.
+  </Step>
+</Steps>

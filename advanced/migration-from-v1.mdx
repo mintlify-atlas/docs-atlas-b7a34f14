@@ -1,0 +1,361 @@
+---
+title: Migrating from Phlex v1 to v2
+description: Guide to upgrading your Phlex components from version 1.x to 2.x, including breaking changes and new features
+---
+
+Phlex v2 introduces several breaking changes and improvements. This guide helps you migrate your v1 components to v2.
+
+<Note>
+Phlex follows [BreakVer](https://www.taoensso.com/break-versioning) rather than Semantic Versioning. Major version changes may include breaking changes.
+</Note>
+
+## Version Information
+
+Current version: **2.4.1**
+
+- [v2 Docs](https://www.phlex.fun)
+- [v1 Docs](https://v1.phlex.fun)
+
+## Breaking Changes
+
+### 1. `template` → `view_template`
+
+The most significant change is renaming the `template` method to `view_template`.
+
+**Phlex v1:**
+```ruby
+class MyComponent < Phlex::HTML
+  def template
+    div { "Hello World" }
+  end
+end
+```
+
+**Phlex v2:**
+```ruby
+class MyComponent < Phlex::HTML
+  def view_template
+    div { "Hello World" }
+  end
+end
+```
+
+<Tip>
+Phlex provides a helpful warning if you forget to rename the method:
+
+```
+Phlex Warning: Your `MyComponent` class doesn't define a `view_template` method. 
+If you are upgrading to Phlex 2.x make sure to rename your `template` method to 
+`view_template`. See: https://beta.phlex.fun/guides/v2-upgrade.html
+```
+</Tip>
+
+The warning is implemented in the base class:
+
+```ruby lib/phlex/sgml.rb:26
+def view_template
+  if block_given?
+    yield
+  else
+    plain "Phlex Warning: Your `#{self.class.name}` class doesn't define a " +
+      "`view_template` method. If you are upgrading to Phlex 2.x make sure " +
+      "to rename your `template` method to `view_template`."
+  end
+end
+```
+
+### 2. CSV Components: `view_template` → `row_template`
+
+In CSV components, the template method is now called `row_template`:
+
+**Phlex v1:**
+```ruby
+class UserCSV < Phlex::CSV
+  def view_template(user)
+    column "Name", user.name
+    column "Email", user.email
+  end
+end
+```
+
+**Phlex v2:**
+```ruby
+class UserCSV < Phlex::CSV
+  def row_template(user)
+    column "Name", user.name
+    column "Email", user.email
+  end
+end
+```
+
+Phlex includes a deprecation shim that maps `view_template` to `row_template`:
+
+```ruby lib/phlex/csv.rb:224
+private def method_missing(method_name, ...)
+  if method_name == :row_template && respond_to?(:view_template)
+    warn "Deprecated: Use `row_template` instead of `view_template` in Phlex CSVs."
+    self.class.alias_method :row_template, :view_template
+    view_template(...)
+  else
+    super
+  end
+end
+```
+
+### 3. CSV Injection Configuration Required
+
+Phlex v2 requires explicit configuration for CSV injection protection. You must implement `escape_csv_injection?` in all CSV classes:
+
+**Phlex v1:**
+```ruby
+class UserCSV < Phlex::CSV
+  def view_template(user)
+    column "Name", user.name
+  end
+end
+```
+
+**Phlex v2:**
+```ruby
+class UserCSV < Phlex::CSV
+  # Required: explicitly enable or disable CSV injection escapes
+  private def escape_csv_injection?
+    true # or false, depending on your use case
+  end
+  
+  def row_template(user)
+    column "Name", user.name
+  end
+end
+```
+
+See the [CSV injection security documentation](/advanced/security-best-practices#csv-injection-prevention) for details.
+
+### 4. Custom Yielders Deprecated
+
+Custom yielders in CSV components are deprecated in favor of `around_row`:
+
+**Phlex v1:**
+```ruby
+class UserCSV < Phlex::CSV
+  def yielder(user)
+    # Custom logic
+    yield(user)
+  end
+end
+```
+
+**Phlex v2:**
+```ruby
+class UserCSV < Phlex::CSV
+  def around_row(user)
+    # Custom logic
+    super # Call super instead of yield
+  end
+end
+```
+
+The deprecation warning:
+
+```ruby lib/phlex/csv.rb:42
+if has_yielder
+  warn <<~MESSAGE
+    Custom yielders are deprecated in Phlex::CSV.
+    
+    Please replace your yielder with an `around_row` method.
+    
+    You should be able to just rename your yielder method
+    and change `yield` to `super`.
+  MESSAGE
+end
+```
+
+## New Features in v2
+
+### Enhanced Compiler
+
+Phlex v2 includes an improved compiler that optimizes more code patterns:
+
+- Better static attribute detection
+- Optimized string interpolation
+- Fragment rendering optimization
+
+The compiler automatically activates for `view_template` methods defined in files.
+
+### Improved Error Messages
+
+Error messages now include source mapping for compiled code:
+
+```ruby lib/phlex/sgml.rb:441
+def __map_exception__(exception)
+  exception.set_backtrace(
+    exception.backtrace_locations.map do |loc|
+      if ((map = Phlex::Compiler::MAP[loc.path]) && (line = map[loc.lineno]))
+        "[Phlex] #{loc.path}:#{line}:#{loc.label}"
+      else
+        "#{loc.path}:#{loc.lineno}:#{loc.label}"
+      end
+    end
+  )
+  exception
+end
+```
+
+### FIFO Attribute Cache
+
+V2 introduces a more efficient FIFO-based attribute cache:
+
+```ruby lib/phlex/fifo.rb
+class Phlex::FIFO
+  def initialize(max_bytesize: 2_000, max_value_bytesize: 2_000)
+    @store = {}
+    @max_bytesize = max_bytesize
+    @max_value_bytesize = max_value_bytesize
+  end
+end
+```
+
+See [Performance Optimization](/advanced/performance-optimization#attribute-caching) for details.
+
+## Migration Strategy
+
+<Steps>
+  <Step title="Update Phlex version">
+    Update your Gemfile:
+    
+    ```ruby Gemfile
+    gem "phlex", "~> 2.4"
+    ```
+    
+    Run `bundle update phlex`
+  </Step>
+  
+  <Step title="Rename template methods">
+    Search and replace in your codebase:
+    
+    ```bash
+    # Find all Phlex HTML/SVG components
+    grep -r "def template" app/views/
+    
+    # Replace template with view_template
+    sed -i 's/def template$/def view_template/' app/views/**/*.rb
+    ```
+  </Step>
+  
+  <Step title="Update CSV components">
+    For CSV components:
+    
+    1. Rename `view_template` to `row_template`
+    2. Add `escape_csv_injection?` configuration
+    3. Replace `yielder` with `around_row` if used
+  </Step>
+  
+  <Step title="Run your test suite">
+    ```bash
+    bundle exec rspec # or your test command
+    ```
+    
+    Look for deprecation warnings and address them.
+  </Step>
+  
+  <Step title="Verify rendering output">
+    Do a visual QA pass on your application to ensure components render correctly.
+  </Step>
+</Steps>
+
+## Automated Migration Script
+
+Here's a Ruby script to help automate the migration:
+
+```ruby migrate_to_v2.rb
+#!/usr/bin/env ruby
+
+require "fileutils"
+
+def migrate_file(file_path)
+  content = File.read(file_path)
+  original = content.dup
+  
+  # Rename template to view_template for HTML/SVG components
+  if content.match?(/(Phlex::HTML|Phlex::SVG)/)
+    content.gsub!(/^(\s*)def template$/, '\\1def view_template')
+  end
+  
+  # Rename view_template to row_template for CSV components
+  if content.match?(/Phlex::CSV/)
+    content.gsub!(/^(\s*)def view_template/, '\\1def row_template')
+    
+    # Add escape_csv_injection? if not present
+    unless content.include?("escape_csv_injection?")
+      # Find the last private method or end of class
+      content.sub!(/^end\s*$/) do |match|
+        <<~RUBY
+          private def escape_csv_injection?
+            true # TODO: Review if this is appropriate for your use case
+          end
+        end
+        RUBY
+      end
+    end
+    
+    # Rename yielder to around_row
+    content.gsub!(/^(\s*)def yielder/, '\\1def around_row')
+    content.gsub!(/yield\(([^)]*)\)/, 'super(\\1)')
+  end
+  
+  if content != original
+    File.write(file_path, content)
+    puts "✓ Migrated #{file_path}"
+  end
+end
+
+# Find all Ruby files in app/views or lib/views
+["app/views", "lib/views"].each do |dir|
+  next unless Dir.exist?(dir)
+  
+  Dir.glob("#{dir}/**/*.rb").each do |file|
+    migrate_file(file)
+  end
+end
+
+puts "\nMigration complete! Please review the changes and run your tests."
+```
+
+Run it:
+
+```bash
+ruby migrate_to_v2.rb
+git diff # Review changes
+```
+
+<Warning>
+Always review automated changes and test thoroughly. The script is a starting point, not a complete solution.
+</Warning>
+
+## Backwards Compatibility
+
+Phlex v2 includes some compatibility shims, but they will be removed in future versions:
+
+- CSV `view_template` → `row_template` mapping (emits deprecation warning)
+- CSV `yielder` support (emits deprecation warning)
+- Default `view_template` that shows warning message
+
+**Do not rely on these shims long-term.** Migrate your code to use the new APIs.
+
+## Getting Help
+
+If you encounter issues during migration:
+
+- Check the [v2 documentation](https://www.phlex.fun)
+- Review the [GitHub issues](https://github.com/phlex-ruby/phlex/issues)
+- Ask in the [Phlex Discord](https://discord.gg/p3jJHkYJ) or community forums
+
+## Version Support
+
+Phlex aims to patch:
+
+- Every minor version released in the last year
+- The latest minor version of the latest two major versions
+- The `main` branch on GitHub
+
+See the [README](https://github.com/phlex-ruby/phlex) for current support policy.

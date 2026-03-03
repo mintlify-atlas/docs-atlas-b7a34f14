@@ -1,0 +1,297 @@
+---
+title: Phlex::HTML
+description: Build HTML views with automatic element generation, doctype support, and embedded SVG rendering.
+---
+
+# Phlex::HTML
+
+The main class for building HTML views in Phlex. Inherits from [Phlex::SGML](/api/phlex-sgml) and provides HTML-specific functionality including void elements, standard elements, and doctype support.
+
+## Inheritance
+
+```ruby
+class Phlex::HTML < Phlex::SGML
+end
+```
+
+Inherits all methods from [Phlex::SGML](/api/phlex-sgml).
+
+## Usage
+
+Create a component by subclassing `Phlex::HTML` and defining a `view_template` method:
+
+```ruby
+class MyPage < Phlex::HTML
+  def view_template
+    doctype
+    
+    html do
+      head do
+        title { "My Page" }
+      end
+      
+      body do
+        h1 { "Welcome" }
+        p { "Hello, World!" }
+      end
+    end
+  end
+end
+
+MyPage.call # => "<!doctype html><html>..."
+```
+
+## Instance Methods
+
+### `#doctype`
+
+Output an HTML5 doctype declaration.
+
+```ruby
+class Page < Phlex::HTML
+  def view_template
+    doctype # => <!doctype html>
+    html do
+      # ...
+    end
+  end
+end
+```
+
+<Note>
+This outputs the HTML5 doctype: `<!doctype html>`
+</Note>
+
+### `#svg(**attributes, &block)`
+
+Output an `<svg>` tag. When given a block, automatically renders the content as an SVG context.
+
+```ruby
+# Without block - renders standard HTML svg element
+svg(width: 100, height: 100)
+
+# With block - renders SVG elements inside
+svg(width: 100, height: 100) do
+  circle(cx: 50, cy: 50, r: 40)
+end
+```
+
+<ParamField path="attributes" type="Hash">
+  HTML attributes for the svg element
+</ParamField>
+
+<ParamField path="block" type="Proc" optional>
+  SVG content to render inside the svg element
+</ParamField>
+
+[MDN Docs](https://developer.mozilla.org/docs/Web/SVG/Element/svg) | [Spec](https://html.spec.whatwg.org/#the-svg-element)
+
+### `#tag(name, **attributes, &block)`
+
+Output an HTML tag dynamically by name.
+
+```ruby
+@tag_name = :h1
+tag(@tag_name, class: "title") { "Dynamic Tag" }
+# => <h1 class="title">Dynamic Tag</h1>
+
+# Works with void elements
+tag(:br)
+# => <br>
+
+# Works with custom elements (must contain hyphen)
+tag(:my_custom_element) # my_custom_element becomes my-custom-element
+# => <my-custom-element></my-custom-element>
+```
+
+<ParamField path="name" type="Symbol" required>
+  Tag name as a symbol (underscores converted to hyphens)
+</ParamField>
+
+<ParamField path="attributes" type="Hash">
+  HTML attributes for the element
+</ParamField>
+
+<ParamField path="block" type="Proc" optional>
+  Content to render inside the element (not allowed for void elements)
+</ParamField>
+
+<Warning>
+Raises `Phlex::ArgumentError` if:
+- Tag name is not a Symbol
+- Block given for a void element (br, hr, img, etc.)
+- Invalid HTML tag name
+</Warning>
+
+### `#content_type`
+
+Returns the MIME type for HTML content.
+
+```ruby
+MyComponent.new.content_type # => "text/html"
+```
+
+**Returns:** `"text/html"`
+
+### `#filename`
+
+Override to provide a filename when serving the HTML file.
+
+```ruby
+class Report < Phlex::HTML
+  def filename
+    "report-#{Date.today}.html"
+  end
+end
+```
+
+**Default:** `nil`
+
+## HTML Elements
+
+Phlex::HTML includes all standard HTML elements as methods. Elements are automatically generated and can be called with attributes and content:
+
+### Standard Elements
+
+Elements that can have content:
+
+```ruby
+# Basic usage
+div { "Content" }
+
+# With attributes
+div(class: "container", id: "main") { "Content" }
+
+# Nested elements
+div do
+  h1 { "Title" }
+  p { "Paragraph" }
+end
+
+# Multiple attributes
+a(href: "/home", class: "link", data_turbo: false) { "Home" }
+```
+
+**Available standard elements include:**
+
+`a`, `abbr`, `address`, `article`, `aside`, `audio`, `b`, `bdi`, `bdo`, `blockquote`, `body`, `button`, `canvas`, `caption`, `cite`, `code`, `colgroup`, `data`, `datalist`, `dd`, `del`, `details`, `dfn`, `dialog`, `div`, `dl`, `dt`, `em`, `fieldset`, `figcaption`, `figure`, `footer`, `form`, `h1`, `h2`, `h3`, `h4`, `h5`, `h6`, `head`, `header`, `hgroup`, `html`, `i`, `iframe`, `ins`, `kbd`, `label`, `legend`, `li`, `main`, `map`, `mark`, `menu`, `meter`, `nav`, `noscript`, `object`, `ol`, `optgroup`, `option`, `output`, `p`, `picture`, `pre`, `progress`, `q`, `rp`, `rt`, `ruby`, `s`, `samp`, `script`, `search`, `section`, `select`, `slot`, `small`, `span`, `strong`, `style`, `sub`, `summary`, `sup`, `table`, `tbody`, `td`, `template`, `textarea`, `tfoot`, `th`, `thead`, `time`, `title`, `tr`, `u`, `ul`, `var`, `video`
+
+### Void Elements
+
+Elements that cannot have content (self-closing):
+
+```ruby
+# Basic usage
+br
+hr
+
+# With attributes
+img(src: "/logo.png", alt: "Logo")
+input(type: "text", name: "username", placeholder: "Enter username")
+```
+
+<Warning>
+Void elements cannot have content blocks. Attempting to pass a block raises `Phlex::ArgumentError`.
+</Warning>
+
+**Available void elements:**
+
+`area`, `br`, `col`, `embed`, `hr`, `img`, `input`, `link`, `meta`, `source`, `track`, `wbr`
+
+## Common Patterns
+
+### Complete HTML Page
+
+```ruby
+class Layout < Phlex::HTML
+  def view_template
+    doctype
+    
+    html(lang: "en") do
+      head do
+        meta(charset: "utf-8")
+        meta(name: "viewport", content: "width=device-width, initial-scale=1")
+        title { "My App" }
+        link(rel: "stylesheet", href: "/styles.css")
+      end
+      
+      body do
+        header do
+          nav { render_navigation }
+        end
+        
+        main do
+          yield # Content from subclasses or blocks
+        end
+        
+        footer do
+          p { "© 2024 My Company" }
+        end
+      end
+    end
+  end
+end
+```
+
+### Form with Input Elements
+
+```ruby
+class UserForm < Phlex::HTML
+  def view_template
+    form(action: "/users", method: "post") do
+      div do
+        label(for: "name") { "Name" }
+        input(type: "text", id: "name", name: "name", required: true)
+      end
+      
+      div do
+        label(for: "email") { "Email" }
+        input(type: "email", id: "email", name: "email", required: true)
+      end
+      
+      button(type: "submit") { "Submit" }
+    end
+  end
+end
+```
+
+### Embedding SVG
+
+```ruby
+class IconButton < Phlex::HTML
+  def view_template
+    button(class: "icon-btn") do
+      svg(width: 24, height: 24, viewBox: "0 0 24 24") do
+        path(d: "M12 2L2 7l10 5 10-5-10-5z")
+        path(d: "M2 17l10 5 10-5M2 12l10 5 10-5")
+      end
+      
+      span { "Click me" }
+    end
+  end
+end
+```
+
+### Dynamic Tags
+
+```ruby
+class DynamicHeading < Phlex::HTML
+  def initialize(level:, text:)
+    @level = level.clamp(1, 6)
+    @text = text
+  end
+  
+  def view_template
+    tag("h#{@level}".to_sym, class: "heading") { @text }
+  end
+end
+
+DynamicHeading.call(level: 2, text: "Welcome")
+# => <h2 class="heading">Welcome</h2>
+```
+
+## See Also
+
+- [Phlex::SGML](/api/phlex-sgml) - Base class with core rendering functionality
+- [Phlex::SVG](/api/phlex-svg) - SVG-specific component class
+- [Phlex::CSV](/api/phlex-csv) - CSV generation class

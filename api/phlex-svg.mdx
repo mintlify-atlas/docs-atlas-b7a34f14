@@ -1,0 +1,355 @@
+---
+title: Phlex::SVG
+description: Build SVG graphics with full element support, CDATA sections, and dynamic tag generation.
+---
+
+# Phlex::SVG
+
+Class for building SVG (Scalable Vector Graphics) views in Phlex. Inherits from [Phlex::SGML](/api/phlex-sgml) and provides SVG-specific functionality including all SVG elements and CDATA support.
+
+## Inheritance
+
+```ruby
+class Phlex::SVG < Phlex::SGML
+end
+```
+
+Inherits all methods from [Phlex::SGML](/api/phlex-sgml).
+
+## Usage
+
+Create an SVG component by subclassing `Phlex::SVG` and defining a `view_template` method:
+
+```ruby
+class MyIcon < Phlex::SVG
+  def view_template
+    svg(width: 24, height: 24, viewBox: "0 0 24 24") do
+      circle(cx: 12, cy: 12, r: 10, fill: "blue")
+      path(d: "M12 2L2 7l10 5 10-5-10-5z", fill: "white")
+    end
+  end
+end
+
+MyIcon.call # => "<svg width=\"24\" height=\"24\">..."
+```
+
+## Instance Methods
+
+### `#content_type`
+
+Returns the MIME type for SVG content.
+
+```ruby
+MyIcon.new.content_type # => "image/svg+xml"
+```
+
+**Returns:** `"image/svg+xml"`
+
+### `#filename`
+
+Override to provide a filename when serving the SVG file.
+
+```ruby
+class Logo < Phlex::SVG
+  def filename
+    "logo.svg"
+  end
+end
+```
+
+**Default:** `nil`
+
+### `#cdata(content = nil, &block)`
+
+Output a CDATA section. CDATA sections are used to include text that should not be parsed as markup.
+
+```ruby
+# With string content
+style do
+  cdata("path { fill: red; }")
+end
+# => <style><![CDATA[path { fill: red; }]]></style>
+
+# With block
+style do
+  cdata do
+    <<~CSS
+      .icon { stroke: black; }
+      .icon:hover { stroke: blue; }
+    CSS
+  end
+end
+```
+
+<ParamField path="content" type="String" optional>
+  String content to wrap in CDATA (mutually exclusive with block)
+</ParamField>
+
+<ParamField path="block" type="Proc" optional>
+  Block that returns content to wrap in CDATA (mutually exclusive with content)
+</ParamField>
+
+<Warning>
+Raises `Phlex::ArgumentError` if:
+- Both content and block are provided
+- Neither content nor block is provided
+- Content is not a String when provided
+</Warning>
+
+<Note>
+The method automatically escapes any `]]>` sequences in the content by replacing them with `]]>]]<![CDATA[`.
+</Note>
+
+### `#tag(name, **attributes, &block)`
+
+Output an SVG element dynamically by name.
+
+```ruby
+@shape = :rect
+tag(@shape, x: 10, y: 10, width: 100, height: 50, fill: "red")
+# => <rect x="10" y="10" width="100" height="50" fill="red"></rect>
+
+# Works with custom elements (must contain hyphen)
+tag(:my_custom_shape, points: "0,0 50,50")
+# => <my-custom-shape points="0,0 50,50"></my-custom-shape>
+```
+
+<ParamField path="name" type="Symbol" required>
+  Tag name as a symbol (underscores converted to hyphens)
+</ParamField>
+
+<ParamField path="attributes" type="Hash">
+  SVG attributes for the element
+</ParamField>
+
+<ParamField path="block" type="Proc" optional>
+  Content to render inside the element
+</ParamField>
+
+<Warning>
+Raises `Phlex::ArgumentError` if:
+- Tag name is not a Symbol
+- Invalid SVG tag name
+</Warning>
+
+## SVG Elements
+
+Phlex::SVG includes all standard SVG elements as methods:
+
+```ruby
+# Basic shapes
+circle(cx: 50, cy: 50, r: 40)
+rect(x: 10, y: 10, width: 100, height: 100)
+ellipse(cx: 100, cy: 50, rx: 100, ry: 50)
+line(x1: 0, y1: 0, x2: 100, y2: 100)
+polygon(points: "0,0 100,0 50,100")
+polyline(points: "0,0 100,0 100,100")
+path(d: "M10 10 H 90 V 90 H 10 L 10 10")
+
+# Container elements
+g(transform: "translate(50, 50)") do
+  circle(r: 20)
+end
+
+defs do
+  linearGradient(id: "grad") do
+    stop(offset: "0%", style: "stop-color:rgb(255,255,0)")
+    stop(offset: "100%", style: "stop-color:rgb(255,0,0)")
+  end
+end
+
+# Text elements
+text(x: 10, y: 20, fill: "black") { "Hello SVG" }
+tspan(x: 10, dy: 20) { "Line 2" }
+
+# Filter effects
+filter(id: "blur") do
+  feGaussianBlur(in: "SourceGraphic", stdDeviation: 5)
+end
+```
+
+**Available SVG elements include:**
+
+`svg`, `g`, `defs`, `symbol`, `use`, `marker`, `clipPath`, `mask`, `pattern`, `linearGradient`, `radialGradient`, `stop`, `circle`, `ellipse`, `line`, `polygon`, `polyline`, `rect`, `path`, `text`, `tspan`, `textPath`, `a`, `animate`, `animateMotion`, `animateTransform`, `set`, `feBlend`, `feColorMatrix`, `feComponentTransfer`, `feComposite`, `feConvolveMatrix`, `feDiffuseLighting`, `feDisplacementMap`, `feDistantLight`, `feDropShadow`, `feFlood`, `feFuncA`, `feFuncB`, `feFuncG`, `feFuncR`, `feGaussianBlur`, `feImage`, `feMerge`, `feMergeNode`, `feMorphology`, `feOffset`, `fePointLight`, `feSpecularLighting`, `feSpotLight`, `feTile`, `feTurbulence`, `filter`, `foreignObject`, `image`, `switch`, `style`, `script`, `title`, `desc`, `metadata`
+
+## Common Patterns
+
+### Complete SVG Document
+
+```ruby
+class Logo < Phlex::SVG
+  def view_template
+    svg(
+      xmlns: "http://www.w3.org/2000/svg",
+      viewBox: "0 0 200 200",
+      width: 200,
+      height: 200
+    ) do
+      defs do
+        linearGradient(id: "gradient") do
+          stop(offset: "0%", stop_color: "#ff0000")
+          stop(offset: "100%", stop_color: "#0000ff")
+        end
+      end
+      
+      circle(cx: 100, cy: 100, r: 80, fill: "url(#gradient)")
+      text(x: 100, y: 110, text_anchor: "middle", fill: "white", font_size: 24) do
+        plain "LOGO"
+      end
+    end
+  end
+end
+```
+
+### Icon Component
+
+```ruby
+class ChevronIcon < Phlex::SVG
+  def initialize(direction: :down)
+    @direction = direction
+  end
+  
+  def view_template
+    svg(width: 24, height: 24, viewBox: "0 0 24 24", fill: "none") do
+      path(
+        d: path_data,
+        stroke: "currentColor",
+        stroke_width: 2,
+        stroke_linecap: "round",
+        stroke_linejoin: "round"
+      )
+    end
+  end
+  
+  private
+  
+  def path_data
+    case @direction
+    when :up then "M18 15l-6-6-6 6"
+    when :down then "M6 9l6 6 6-6"
+    when :left then "M15 18l-6-6 6-6"
+    when :right then "M9 6l6 6-6 6"
+    end
+  end
+end
+```
+
+### Animated SVG
+
+```ruby
+class SpinningLoader < Phlex::SVG
+  def view_template
+    svg(width: 50, height: 50, viewBox: "0 0 50 50") do
+      style do
+        cdata(<<~CSS)
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          .spinner { animation: spin 1s linear infinite; }
+        CSS
+      end
+      
+      circle(
+        class: "spinner",
+        cx: 25,
+        cy: 25,
+        r: 20,
+        fill: "none",
+        stroke: "#3498db",
+        stroke_width: 4,
+        stroke_dasharray: "80, 200"
+      )
+    end
+  end
+end
+```
+
+### Reusable SVG Symbols
+
+```ruby
+class IconSprite < Phlex::SVG
+  def view_template
+    svg(style: "display: none;") do
+      defs do
+        symbol(id: "icon-home", viewBox: "0 0 24 24") do
+          path(d: "M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z")
+        end
+        
+        symbol(id: "icon-user", viewBox: "0 0 24 24") do
+          circle(cx: 12, cy: 8, r: 4)
+          path(d: "M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2")
+        end
+      end
+    end
+  end
+end
+
+# Usage in HTML
+class Page < Phlex::HTML
+  def view_template
+    render IconSprite.new
+    
+    svg(width: 24, height: 24) do
+      use(href: "#icon-home")
+    end
+  end
+end
+```
+
+### Embedding SVG in HTML
+
+```ruby
+class Card < Phlex::HTML
+  def view_template
+    div(class: "card") do
+      # Use the svg helper to embed SVG
+      svg(width: 100, height: 100, viewBox: "0 0 100 100") do
+        circle(cx: 50, cy: 50, r: 40, fill: "blue")
+      end
+      
+      h2 { "Card Title" }
+      p { "Card content" }
+    end
+  end
+end
+```
+
+### Dynamic SVG Generation
+
+```ruby
+class BarChart < Phlex::SVG
+  def initialize(data)
+    @data = data
+  end
+  
+  def view_template
+    svg(width: 400, height: 200, viewBox: "0 0 400 200") do
+      @data.each_with_index do |(label, value), i|
+        x = i * 50 + 10
+        height = value * 2
+        
+        rect(
+          x: x,
+          y: 200 - height,
+          width: 40,
+          height: height,
+          fill: "steelblue"
+        )
+        
+        text(x: x + 20, y: 195, text_anchor: "middle", font_size: 12) do
+          plain label
+        end
+      end
+    end
+  end
+end
+
+BarChart.call([("A", 45), ("B", 70), ("C", 35)])
+```
+
+## See Also
+
+- [Phlex::SGML](/api/phlex-sgml) - Base class with core rendering functionality
+- [Phlex::HTML](/api/phlex-html) - HTML-specific component class
+- [MDN SVG Documentation](https://developer.mozilla.org/en-US/docs/Web/SVG)

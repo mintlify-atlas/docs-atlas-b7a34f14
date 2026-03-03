@@ -1,80 +1,383 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Build your first Phlex component and learn the fundamentals in 5 minutes
 ---
 
-## Get started in three steps
+## Your First Component
 
-Get your documentation site running locally and make your first customization.
+Let's build a simple HTML component to understand Phlex's core concepts.
 
-### Step 1: Set up your local environment
+<Steps>
+  <Step title="Create a component class">
+    Every Phlex component inherits from `Phlex::HTML` and defines a `view_template` method:
+
+    ```ruby
+    class GreetingComponent < Phlex::HTML
+      def view_template
+        h1 { "Hello, World!" }
+      end
+    end
+    ```
+
+    <Note>
+      The `view_template` method is where you define your HTML structure using Phlex's DSL.
+    </Note>
+  </Step>
+
+  <Step title="Render the component">
+    Call your component to generate HTML:
+
+    ```ruby
+    html = GreetingComponent.call
+    puts html
+    # => <h1>Hello, World!</h1>
+    ```
+
+    <Tip>
+      Use `.call` on the class to instantiate and render in one step.
+    </Tip>
+  </Step>
+</Steps>
+
+## Adding Dynamic Content
+
+Components accept data through their initializer:
+
+```ruby
+class GreetingComponent < Phlex::HTML
+  def initialize(name:)
+    @name = name
+  end
+
+  def view_template
+    h1 { "Hello, #{@name}!" }
+  end
+end
+
+GreetingComponent.call(name: "Ruby")
+# => <h1>Hello, Ruby!</h1>
+```
+
+<Warning>
+  Phlex automatically escapes text content to prevent XSS attacks. Raw HTML requires explicit opt-in using `raw(safe("<html>"))`.
+</Warning>
+
+## Working with Attributes
+
+Phlex provides a clean syntax for HTML attributes:
+
+<CodeGroup>
+
+```ruby Basic Attributes
+class ButtonComponent < Phlex::HTML
+  def view_template
+    button(
+      class: "btn btn-primary",
+      id: "submit-button",
+      disabled: true
+    ) { "Submit" }
+  end
+end
+
+# => <button class="btn btn-primary" id="submit-button" disabled>Submit</button>
+```
+
+```ruby Data Attributes
+class CardComponent < Phlex::HTML
+  def view_template
+    div(
+      data: {
+        controller: "card",
+        action: "click->card#toggle"
+      }
+    ) { "Click me" }
+  end
+end
+
+# => <div data-controller="card" data-action="click->card#toggle">Click me</div>
+```
+
+```ruby Array Classes
+class AlertComponent < Phlex::HTML
+  def view_template
+    div(class: ["alert", "alert-success", "fade"]) {
+      "Operation successful!"
+    }
+  end
+end
+
+# => <div class="alert alert-success fade">Operation successful!</div>
+```
+
+</CodeGroup>
+
+### Attribute Type Reference
 
 <AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+  <Accordion title="Boolean attributes">
+    Use `true` to include the attribute, `false` or `nil` to omit it:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
+    ```ruby
+    input(disabled: true, checked: false)
+    # => <input disabled>
+    ```
   </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+
+  <Accordion title="String and Symbol values">
+    Both strings and symbols work. Symbols with underscores convert to dashes:
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
+    ```ruby
+    div(class: :text_center)  # => <div class="text-center"></div>
+    div(class: "text-center") # => <div class="text-center"></div>
+    ```
+  </Accordion>
+
+  <Accordion title="Numeric values">
+    Integers and floats are automatically converted to strings:
+    
+    ```ruby
+    input(type: "number", value: 42, step: 0.5)
+    # => <input type="number" value="42" step="0.5">
+    ```
+  </Accordion>
+
+  <Accordion title="Hash values (nested attributes)">
+    Hashes create nested attributes joined with dashes:
+    
+    ```ruby
+    div(data: { user_id: 123, role: "admin" })
+    # => <div data-user-id="123" data-role="admin"></div>
+    ```
   </Accordion>
 </AccordionGroup>
 
-### Step 2: Deploy your changes
+## Composing Components
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+Build complex UIs by composing components together:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+```ruby
+class LayoutComponent < Phlex::HTML
+  def initialize(title:)
+    @title = title
+  end
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  def view_template(&block)
+    html do
+      head { title { @title } }
+      body(&block)
+    end
+  end
+end
 
-### Step 3: Go live
+class ArticleComponent < Phlex::HTML
+  def initialize(title:, content:)
+    @title = title
+    @content = content
+  end
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+  def view_template
+    article do
+      h1 { @title }
+      p { @content }
+    end
+  end
+end
 
-## Next steps
+class PageComponent < Phlex::HTML
+  def view_template
+    render LayoutComponent.new(title: "My Blog") do
+      render ArticleComponent.new(
+        title: "Getting Started with Phlex",
+        content: "Phlex makes building views enjoyable!"
+      )
+    end
+  end
+end
 
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+PageComponent.call
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  Use `render` to include one component inside another. Pass blocks to parent components for flexible layouts.
 </Note>
+
+## Complete Example: Card Component
+
+Here's a practical example combining everything we've learned:
+
+```ruby
+class CardComponent < Phlex::HTML
+  def initialize(title:, description:, image_url: nil, featured: false)
+    @title = title
+    @description = description
+    @image_url = image_url
+    @featured = featured
+  end
+
+  def view_template
+    article(class: card_classes) do
+      render_image if @image_url
+      
+      div(class: "p-6") do
+        h2(class: "text-2xl font-bold mb-2") { @title }
+        p(class: "text-gray-600") { @description }
+        
+        render_badge if @featured
+      end
+    end
+  end
+
+  private
+
+  def card_classes
+    classes = ["rounded-lg", "shadow-lg", "overflow-hidden"]
+    classes << "border-2 border-yellow-400" if @featured
+    classes
+  end
+
+  def render_image
+    img(
+      src: @image_url,
+      alt: @title,
+      class: "w-full h-48 object-cover"
+    )
+  end
+
+  def render_badge
+    span(
+      class: "inline-block px-3 py-1 bg-yellow-400 text-sm font-semibold rounded mt-4"
+    ) { "Featured" }
+  end
+end
+
+# Usage
+CardComponent.call(
+  title: "Phlex Basics",
+  description: "Learn the fundamentals of component-based views",
+  image_url: "/images/phlex-basics.jpg",
+  featured: true
+)
+```
+
+<Tip>
+  Break down complex components into private helper methods. This keeps your code organized and testable.
+</Tip>
+
+## Inline HTML Without Classes
+
+For quick HTML generation, use `Phlex.html` without creating a class:
+
+```ruby
+html_string = Phlex.html do
+  div(class: "container") do
+    h1 { "Quick HTML" }
+    p { "No class definition needed" }
+  end
+end
+
+puts html_string
+# => <div class="container"><h1>Quick HTML</h1><p>No class definition needed</p></div>
+```
+
+<Note>
+  This is perfect for scripts, tests, or one-off HTML generation tasks.
+</Note>
+
+## Plain Text Output
+
+Use `plain` to output text content explicitly:
+
+```ruby
+class MessageComponent < Phlex::HTML
+  def view_template
+    div do
+      plain "This is "
+      strong { "important" }
+      plain " text."
+    end
+  end
+end
+
+# => <div>This is <strong>important</strong> text.</div>
+```
+
+## Common Patterns
+
+<AccordionGroup>
+  <Accordion title="Conditional rendering">
+    Use standard Ruby conditionals:
+    
+    ```ruby
+    def view_template
+      if @user.admin?
+        button { "Admin Panel" }
+      else
+        p { "Welcome, #{@user.name}" }
+      end
+    end
+    ```
+  </Accordion>
+
+  <Accordion title="Loops and iteration">
+    Use Ruby's enumerable methods:
+    
+    ```ruby
+    def view_template
+      ul do
+        @items.each do |item|
+          li { item.name }
+        end
+      end
+    end
+    ```
+  </Accordion>
+
+  <Accordion title="Default values">
+    Set defaults in the initializer:
+    
+    ```ruby
+    def initialize(title:, subtitle: nil)
+      @title = title
+      @subtitle = subtitle || "No subtitle provided"
+    end
+    ```
+  </Accordion>
+
+  <Accordion title="Dynamic tag names">
+    Use the `tag` method for dynamic element types:
+    
+    ```ruby
+    def view_template
+      @tag_name = :h1
+      tag(@tag_name, class: "title") { "Dynamic heading" }
+    end
+    # => <h1 class="title">Dynamic heading</h1>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+You now know the fundamentals of Phlex! Here's what to explore next:
+
+<CardGroup cols={2}>
+  <Card title="Advanced Components" icon="layer-group" href="/concepts/kits-and-organization">
+    Learn about component inheritance, mixins, and Kit modules
+  </Card>
+  
+  <Card title="SVG Support" icon="draw-polygon" href="/concepts/svg-views">
+    Build scalable vector graphics with the same elegant syntax
+  </Card>
+  
+  <Card title="Testing Views" icon="flask" href="/guides/testing-components">
+    Write unit tests for your components
+  </Card>
+  
+  <Card title="Performance" icon="gauge-high" href="/advanced/performance-optimization">
+    Optimize rendering with caching and compilation
+  </Card>
+</CardGroup>
+
+<Tip>
+  Join the [Phlex community](https://www.phlex.fun) to see real-world examples and get help from other developers.
+</Tip>

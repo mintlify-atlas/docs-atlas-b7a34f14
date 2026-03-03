@@ -1,0 +1,235 @@
+---
+title: Standard HTML Elements
+description: Reference for all standard HTML element methods with closing tags in Phlex
+---
+
+Standard HTML elements accept content and always have a closing tag. Each method accepts keyword arguments for attributes and a block for content.
+
+## Usage
+
+All standard element methods follow this signature:
+
+```ruby
+element_name(**attributes, &content)
+```
+
+### Examples
+
+```ruby
+class MyView < Phlex::HTML
+  def view_template
+    div(class: "container") do
+      h1 { "Welcome" }
+      p(id: "intro") { "This is a paragraph" }
+      a(href: "/about") { "About Us" }
+    end
+  end
+end
+```
+
+```ruby
+# With multiple attributes
+button(type: "submit", class: "btn btn-primary", disabled: true) do
+  "Submit Form"
+end
+```
+
+```ruby
+# Nested elements
+ul(class: "menu") do
+  li { a(href: "/home") { "Home" } }
+  li { a(href: "/about") { "About" } }
+  li { a(href: "/contact") { "Contact" } }
+end
+```
+
+## Available Elements
+
+<AccordionGroup>
+  <Accordion title="Document Structure (5 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `html` | Root element | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/html) | [Spec](https://html.spec.whatwg.org/#the-html-element) |
+    | `head` | Document metadata container | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/head) | [Spec](https://html.spec.whatwg.org/#the-head-element) |
+    | `body` | Document body | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/body) | [Spec](https://html.spec.whatwg.org/#the-body-element) |
+    | `title` | Document title | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/title) | [Spec](https://html.spec.whatwg.org/#the-title-element) |
+    | `style` | Embedded CSS | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/style) | [Spec](https://html.spec.whatwg.org/#the-style-element) |
+  </Accordion>
+
+  <Accordion title="Content Sectioning (11 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `header` | Introductory content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/header) | [Spec](https://html.spec.whatwg.org/#the-header-element) |
+    | `nav` | Navigation section | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/nav) | [Spec](https://html.spec.whatwg.org/#the-nav-element) |
+    | `main` | Main content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/main) | [Spec](https://html.spec.whatwg.org/#the-main-element) |
+    | `section` | Generic section | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/section) | [Spec](https://html.spec.whatwg.org/#the-section-element) |
+    | `article` | Self-contained content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/article) | [Spec](https://html.spec.whatwg.org/#the-article-element) |
+    | `aside` | Aside content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/aside) | [Spec](https://html.spec.whatwg.org/#the-aside-element) |
+    | `footer` | Footer content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/footer) | [Spec](https://html.spec.whatwg.org/#the-footer-element) |
+    | `address` | Contact information | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/address) | [Spec](https://html.spec.whatwg.org/#the-address-element) |
+    | `hgroup` | Heading group | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/hgroup) | [Spec](https://html.spec.whatwg.org/#the-hgroup-element) |
+    | `search` | Search section | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/search) | [Spec](https://html.spec.whatwg.org/#the-search-element) |
+    | `div` | Generic container | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/div) | [Spec](https://html.spec.whatwg.org/#the-div-element) |
+  </Accordion>
+
+  <Accordion title="Headings (6 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `h1` | Heading level 1 | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/h1) | [Spec](https://html.spec.whatwg.org/#the-h1-element) |
+    | `h2` | Heading level 2 | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/h2) | [Spec](https://html.spec.whatwg.org/#the-h2-element) |
+    | `h3` | Heading level 3 | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/h3) | [Spec](https://html.spec.whatwg.org/#the-h3-element) |
+    | `h4` | Heading level 4 | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/h4) | [Spec](https://html.spec.whatwg.org/#the-h4-element) |
+    | `h5` | Heading level 5 | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/h5) | [Spec](https://html.spec.whatwg.org/#the-h5-element) |
+    | `h6` | Heading level 6 | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/h6) | [Spec](https://html.spec.whatwg.org/#the-h6-element) |
+  </Accordion>
+
+  <Accordion title="Text Content (14 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `p` | Paragraph | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/p) | [Spec](https://html.spec.whatwg.org/#the-p-element) |
+    | `blockquote` | Block quotation | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/blockquote) | [Spec](https://html.spec.whatwg.org/#the-blockquote-element) |
+    | `pre` | Preformatted text | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/pre) | [Spec](https://html.spec.whatwg.org/#the-pre-element) |
+    | `ul` | Unordered list | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/ul) | [Spec](https://html.spec.whatwg.org/#the-ul-element) |
+    | `ol` | Ordered list | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/ol) | [Spec](https://html.spec.whatwg.org/#the-ol-element) |
+    | `li` | List item | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/li) | [Spec](https://html.spec.whatwg.org/#the-li-element) |
+    | `dl` | Description list | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/dl) | [Spec](https://html.spec.whatwg.org/#the-dl-element) |
+    | `dt` | Description term | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/dt) | [Spec](https://html.spec.whatwg.org/#the-dt-element) |
+    | `dd` | Description details | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/dd) | [Spec](https://html.spec.whatwg.org/#the-dd-element) |
+    | `figure` | Figure with caption | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/figure) | [Spec](https://html.spec.whatwg.org/#the-figure-element) |
+    | `figcaption` | Figure caption | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/figcaption) | [Spec](https://html.spec.whatwg.org/#the-figcaption-element) |
+    | `menu` | Menu list | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/menu) | [Spec](https://html.spec.whatwg.org/#the-menu-element) |
+    | `details` | Disclosure widget | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/details) | [Spec](https://html.spec.whatwg.org/#the-details-element) |
+    | `summary` | Summary for details | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/summary) | [Spec](https://html.spec.whatwg.org/#the-summary-element) |
+  </Accordion>
+
+  <Accordion title="Inline Text Semantics (24 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `a` | Anchor/hyperlink | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/a) | [Spec](https://html.spec.whatwg.org/#the-a-element) |
+    | `abbr` | Abbreviation | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/abbr) | [Spec](https://html.spec.whatwg.org/#the-abbr-element) |
+    | `b` | Bold text | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/b) | [Spec](https://html.spec.whatwg.org/#the-b-element) |
+    | `bdi` | Bidirectional isolate | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/bdi) | [Spec](https://html.spec.whatwg.org/#the-bdi-element) |
+    | `bdo` | Bidirectional override | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/bdo) | [Spec](https://html.spec.whatwg.org/#the-bdo-element) |
+    | `cite` | Citation | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/cite) | [Spec](https://html.spec.whatwg.org/#the-cite-element) |
+    | `code` | Inline code | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/code) | [Spec](https://html.spec.whatwg.org/#the-code-element) |
+    | `data` | Machine-readable data | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/data) | [Spec](https://html.spec.whatwg.org/#the-data-element) |
+    | `dfn` | Definition term | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/dfn) | [Spec](https://html.spec.whatwg.org/#the-dfn-element) |
+    | `em` | Emphasis | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/em) | [Spec](https://html.spec.whatwg.org/#the-em-element) |
+    | `i` | Italic text | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/i) | [Spec](https://html.spec.whatwg.org/#the-i-element) |
+    | `kbd` | Keyboard input | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/kbd) | [Spec](https://html.spec.whatwg.org/#the-kbd-element) |
+    | `mark` | Marked/highlighted text | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/mark) | [Spec](https://html.spec.whatwg.org/#the-mark-element) |
+    | `q` | Inline quotation | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/q) | [Spec](https://html.spec.whatwg.org/#the-q-element) |
+    | `s` | Strikethrough | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/s) | [Spec](https://html.spec.whatwg.org/#the-s-element) |
+    | `samp` | Sample output | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/samp) | [Spec](https://html.spec.whatwg.org/#the-samp-element) |
+    | `small` | Small text | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/small) | [Spec](https://html.spec.whatwg.org/#the-small-element) |
+    | `span` | Generic inline container | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/span) | [Spec](https://html.spec.whatwg.org/#the-span-element) |
+    | `strong` | Strong importance | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/strong) | [Spec](https://html.spec.whatwg.org/#the-strong-element) |
+    | `sub` | Subscript | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/sub) | [Spec](https://html.spec.whatwg.org/#the-sub-element) |
+    | `sup` | Superscript | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/sup) | [Spec](https://html.spec.whatwg.org/#the-sup-element) |
+    | `time` | Time/date | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/time) | [Spec](https://html.spec.whatwg.org/#the-time-element) |
+    | `u` | Underline | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/u) | [Spec](https://html.spec.whatwg.org/#the-u-element) |
+    | `var` | Variable | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/var) | [Spec](https://html.spec.whatwg.org/#the-var-element) |
+  </Accordion>
+
+  <Accordion title="Forms (11 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `form` | Form container | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/form) | [Spec](https://html.spec.whatwg.org/#the-form-element) |
+    | `label` | Form control label | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/label) | [Spec](https://html.spec.whatwg.org/#the-label-element) |
+    | `button` | Interactive button | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/button) | [Spec](https://html.spec.whatwg.org/#the-button-element) |
+    | `select` | Dropdown select | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/select) | [Spec](https://html.spec.whatwg.org/#the-select-element) |
+    | `datalist` | Input options list | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/datalist) | [Spec](https://html.spec.whatwg.org/#the-datalist-element) |
+    | `optgroup` | Option group | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/optgroup) | [Spec](https://html.spec.whatwg.org/#the-optgroup-element) |
+    | `option` | Select option | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/option) | [Spec](https://html.spec.whatwg.org/#the-option-element) |
+    | `textarea` | Multi-line text input | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/textarea) | [Spec](https://html.spec.whatwg.org/#the-textarea-element) |
+    | `output` | Calculation result | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/output) | [Spec](https://html.spec.whatwg.org/#the-output-element) |
+    | `progress` | Progress indicator | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/progress) | [Spec](https://html.spec.whatwg.org/#the-progress-element) |
+    | `meter` | Scalar measurement | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/meter) | [Spec](https://html.spec.whatwg.org/#the-meter-element) |
+  </Accordion>
+
+  <Accordion title="Form Grouping (2 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `fieldset` | Form control grouping | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/fieldset) | [Spec](https://html.spec.whatwg.org/#the-fieldset-element) |
+    | `legend` | Fieldset caption | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/legend) | [Spec](https://html.spec.whatwg.org/#the-legend-element) |
+  </Accordion>
+
+  <Accordion title="Tables (10 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `table` | Table container | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/table) | [Spec](https://html.spec.whatwg.org/#the-table-element) |
+    | `caption` | Table caption | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/caption) | [Spec](https://html.spec.whatwg.org/#the-caption-element) |
+    | `colgroup` | Column group | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/colgroup) | [Spec](https://html.spec.whatwg.org/#the-colgroup-element) |
+    | `thead` | Table header | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/thead) | [Spec](https://html.spec.whatwg.org/#the-thead-element) |
+    | `tbody` | Table body | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/tbody) | [Spec](https://html.spec.whatwg.org/#the-tbody-element) |
+    | `tfoot` | Table footer | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/tfoot) | [Spec](https://html.spec.whatwg.org/#the-tfoot-element) |
+    | `tr` | Table row | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/tr) | [Spec](https://html.spec.whatwg.org/#the-tr-element) |
+    | `th` | Table header cell | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/th) | [Spec](https://html.spec.whatwg.org/#the-th-element) |
+    | `td` | Table data cell | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/td) | [Spec](https://html.spec.whatwg.org/#the-td-element) |
+  </Accordion>
+
+  <Accordion title="Media & Embedded Content (7 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `audio` | Audio content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/audio) | [Spec](https://html.spec.whatwg.org/#the-audio-element) |
+    | `video` | Video content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/video) | [Spec](https://html.spec.whatwg.org/#the-video-element) |
+    | `picture` | Responsive images | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/picture) | [Spec](https://html.spec.whatwg.org/#the-picture-element) |
+    | `canvas` | Graphics canvas | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/canvas) | [Spec](https://html.spec.whatwg.org/#the-canvas-element) |
+    | `svg` | SVG graphics | [MDN](https://developer.mozilla.org/docs/Web/SVG/Element/svg) | [Spec](https://html.spec.whatwg.org/#the-svg-element) |
+    | `iframe` | Nested browsing context | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/iframe) | [Spec](https://html.spec.whatwg.org/#the-iframe-element) |
+    | `object` | External resource | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/object) | [Spec](https://html.spec.whatwg.org/#the-object-element) |
+  </Accordion>
+
+  <Accordion title="Scripting (3 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `script` | Executable code | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/script) | [Spec](https://html.spec.whatwg.org/#the-script-element) |
+    | `noscript` | No-script fallback | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/noscript) | [Spec](https://html.spec.whatwg.org/#the-noscript-element) |
+    | `template` | Template content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/template) | [Spec](https://html.spec.whatwg.org/#the-template-element) |
+  </Accordion>
+
+  <Accordion title="Ruby Annotations (3 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `ruby` | Ruby annotation | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/ruby) | [Spec](https://html.spec.whatwg.org/#the-ruby-element) |
+    | `rt` | Ruby text | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/rt) | [Spec](https://html.spec.whatwg.org/#the-rt-element) |
+    | `rp` | Ruby parenthesis | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/rp) | [Spec](https://html.spec.whatwg.org/#the-rp-element) |
+  </Accordion>
+
+  <Accordion title="Edits (2 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `ins` | Inserted text | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/ins) | [Spec](https://html.spec.whatwg.org/#the-ins-element) |
+    | `del` | Deleted text | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/del) | [Spec](https://html.spec.whatwg.org/#the-del-element) |
+  </Accordion>
+
+  <Accordion title="Interactive (2 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `dialog` | Dialog box | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/dialog) | [Spec](https://html.spec.whatwg.org/#the-dialog-element) |
+    | `map` | Image map | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/map) | [Spec](https://html.spec.whatwg.org/#the-map-element) |
+  </Accordion>
+
+  <Accordion title="Web Components (2 elements)">
+    | Element | Description | MDN Docs | Spec |
+    |---------|-------------|----------|------|
+    | `slot` | Web component slot | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/slot) | [Spec](https://html.spec.whatwg.org/#the-slot-element) |
+    | `selectedcontent` | Selected content (EXPERIMENTAL) | [MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/selectedcontent) | [Draft](https://github.com/whatwg/html/pull/10633) |
+  </Accordion>
+
+  <Accordion title="Experimental (1 element)">
+    | Element | Description | MDN Docs |
+    |---------|-------------|----------|
+    | `fencedframe` | Fenced frame (EXPERIMENTAL) | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/fencedframe) |
+  </Accordion>
+</AccordionGroup>
+
+## Total Count
+
+**99 standard HTML elements** are available in Phlex.
+
+## See Also
+
+- [Void HTML Elements](/api/html-void-elements) - Self-closing elements without content
+- [Attributes](/guides/attributes-and-styling) - Learn about HTML attributes in Phlex
+- [WHATWG HTML Spec](https://html.spec.whatwg.org/) - Official HTML specification

@@ -1,0 +1,434 @@
+---
+title: Phlex::SGML
+description: Base class for building Standard Generalized Markup Language views, providing core functionality for HTML and SVG components.
+---
+
+# Phlex::SGML
+
+The base class for HTML and SVG components in Phlex. Provides core rendering functionality, content output methods, lifecycle hooks, and caching capabilities.
+
+## Class Methods
+
+### `.call(*args, **kwargs, &block)`
+
+Render the view to a String. Arguments are delegated to `.new`.
+
+```ruby
+MyComponent.call(name: "Alice") # => "<div>Hello Alice</div>"
+```
+
+<ParamField path="args" type="Array">
+  Positional arguments passed to the component's initializer
+</ParamField>
+
+<ParamField path="kwargs" type="Hash">
+  Keyword arguments passed to the component's initializer
+</ParamField>
+
+<ParamField path="block" type="Proc">
+  Content block sent to `view_template` during rendering (not passed to initialize)
+</ParamField>
+
+### `.new(*args, **kwargs, &block)`
+
+Create a new instance of the component.
+
+<Note>
+The block is NOT delegated to `#initialize`. Instead, it will be sent to `#view_template` when rendering.
+</Note>
+
+```ruby
+component = MyComponent.new(title: "Hello")
+component.call # renders the component
+```
+
+## Instance Methods
+
+### `#view_template(&block)`
+
+Define the template for your component. Override this method in your component class.
+
+```ruby
+class MyComponent < Phlex::HTML
+  def view_template
+    h1 { "Hello World" }
+  end
+end
+```
+
+<ParamField path="block" type="Proc" optional>
+  Optional content block passed during rendering
+</ParamField>
+
+### `#call(buffer = +"", context: {}, fragments: nil, &block)`
+
+Render the component and return the output string.
+
+```ruby
+component = MyComponent.new
+html = component.call
+```
+
+<ParamField path="buffer" type="String" default='+""'>
+  Output buffer to append to
+</ParamField>
+
+<ParamField path="context" type="Hash" default="{}">
+  Hash of context data available during rendering via `#context`
+</ParamField>
+
+<ParamField path="fragments" type="Array" optional>
+  Array of fragment names to selectively render
+</ParamField>
+
+<ParamField path="block" type="Proc" optional>
+  Content block to render
+</ParamField>
+
+<Warning>
+A component can only be rendered once. Attempting to render the same instance twice raises `Phlex::DoubleRenderError`.
+</Warning>
+
+### `#context`
+
+Access the context hash passed to `#call`.
+
+```ruby
+def view_template
+  h1 { context[:title] }
+end
+
+# Usage:
+MyComponent.new.call(context: { title: "Welcome" })
+```
+
+<Warning>
+Raises `Phlex::ArgumentError` if called before the component has started rendering.
+</Warning>
+
+### `#rendering?`
+
+Returns `false` before rendering and `true` once the component has started rendering. Does not reset to false after rendering.
+
+```ruby
+def initialize
+  rendering? # => false
+end
+
+def view_template
+  rendering? # => true
+end
+```
+
+### `#plain(content)`
+
+Output plain text content with automatic HTML escaping.
+
+```ruby
+plain "Hello <World>" # => "Hello &lt;World&gt;"
+plain 42               # => "42"
+plain :symbol          # => "symbol"
+```
+
+<ParamField path="content" type="String | Symbol | Integer | Float">
+  Content to output as plain text
+</ParamField>
+
+<Note>
+Supports String, Symbol, Integer, and Float types. Other types require custom `format_object` implementation.
+</Note>
+
+### `#whitespace(&block)`
+
+Output a single space character. If a block is given, a space will be output before and after the block.
+
+```ruby
+span { "Hello" }
+whitespace
+span { "World" }
+# => "<span>Hello</span> <span>World</span>"
+
+whitespace { span { "Middle" } }
+# => " <span>Middle</span> "
+```
+
+### `#comment(&block)`
+
+Wrap the output in an HTML comment.
+
+```ruby
+comment { plain "This is a comment" }
+# => "<!-- This is a comment -->"
+```
+
+[MDN Docs](https://developer.mozilla.org/en-US/docs/Web/HTML/Comments)
+
+### `#raw(content)`
+
+Output the given safe object as-is without escaping. Use `#safe` to mark a string as safe.
+
+```ruby
+raw safe("<strong>Bold</strong>")
+# => "<strong>Bold</strong>"
+```
+
+<ParamField path="content" type="Phlex::SGML::SafeObject">
+  Safe object to output without escaping
+</ParamField>
+
+<Warning>
+Raises `Phlex::ArgumentError` if passed an unsafe object. Always use `#safe` to mark strings as safe.
+</Warning>
+
+### `#safe(value)`
+
+Mark a string as safe for HTML output, preventing automatic escaping.
+
+```ruby
+script { safe("console.log('Hello');") }
+# => "<script>console.log('Hello');</script>"
+
+a(onclick: safe("window.history.back()"))
+# => '<a onclick="window.history.back()"></a>'
+```
+
+<ParamField path="value" type="String">
+  String to mark as safe
+</ParamField>
+
+**Alias:** `🦺`
+
+### `#capture(*args, &block)`
+
+Capture the output of a block and return it as a string instead of appending to the buffer.
+
+```ruby
+title = capture { h1 { "Hello" } }
+# title => "<h1>Hello</h1>"
+
+with_args = capture("a", "b") { |x, y| "#{x} #{y}" }
+# with_args => "a b"
+```
+
+<ParamField path="args" type="Array">
+  Arguments to pass to the block
+</ParamField>
+
+<ParamField path="block" type="Proc" required>
+  Block to capture output from
+</ParamField>
+
+### `#fragment(name, &block)`
+
+Define a named fragment that can be selectively rendered.
+
+```ruby
+fragment(:header) do
+  h1 { "Title" }
+end
+
+fragment(:content) do
+  p { "Body text" }
+end
+
+# Render only specific fragments:
+call(fragments: [:header]) # renders only the header
+```
+
+<ParamField path="name" type="Symbol | String" required>
+  Name of the fragment
+</ParamField>
+
+### `#flush`
+
+Flush the current state buffer to the output buffer.
+
+```ruby
+flush # Forces immediate output of buffered content
+```
+
+### `#render(renderable = nil, &block)`
+
+Render another component, enumerable, string, or proc.
+
+```ruby
+# Render a component instance
+render MyComponent.new
+
+# Render a component class
+render MyComponent
+
+# Render multiple components
+render [Header.new, Body.new, Footer.new]
+
+# Render a string
+render "Hello"
+
+# Render a proc
+render -> { h1 { "Dynamic" } }
+```
+
+<ParamField path="renderable" type="Phlex::SGML | Class | Enumerable | Proc | Method | String" optional>
+  Object to render
+</ParamField>
+
+### `#cache(*cache_key, **options, &content)`
+
+Cache a block of content with an automatically generated cache key.
+
+```ruby
+@products.each do |product|
+  cache product do
+    h1 { product.name }
+    p { product.description }
+  end
+end
+```
+
+<ParamField path="cache_key" type="Array">
+  Custom cache key components (combined with automatic keys)
+</ParamField>
+
+<ParamField path="options" type="Hash">
+  Options passed to the cache store
+</ParamField>
+
+<Note>
+The full cache key includes: app version, class name, object_id (if reloading enabled), method name, line number, and your custom cache key.
+</Note>
+
+### `#low_level_cache(cache_key, **options, &content)`
+
+Cache a block where you control the entire cache key.
+
+```ruby
+low_level_cache([Commonmarker::VERSION, Digest::MD5.hexdigest(@content)]) do
+  markdown(@content)
+end
+```
+
+<ParamField path="cache_key" type="Array | String" required>
+  Complete cache key (you have full control)
+</ParamField>
+
+<ParamField path="options" type="Hash">
+  Options passed to the cache store
+</ParamField>
+
+<Warning>
+Unlike `#cache`, this method does not take a splat. Pass an array if you need multiple cache key components.
+</Warning>
+
+### `#json_escape(string)`
+
+Escape a string for safe use in JSON contexts.
+
+```ruby
+json_escape("Hello \"World\"")
+# => "Hello \\\"World\\\""
+```
+
+<ParamField path="string" type="String" required>
+  String to escape for JSON
+</ParamField>
+
+### `#to_proc`
+
+Convert the component to a Proc that can be used with collection methods.
+
+```ruby
+@items.map(&MyComponent.new)
+```
+
+## Lifecycle Hooks
+
+Override these private methods to hook into the rendering lifecycle:
+
+### `#around_template(&block)`
+
+Wrap the entire template rendering. Call `yield` to render the template.
+
+```ruby
+private def around_template
+  puts "Before template"
+  yield
+  puts "After template"
+end
+```
+
+### `#before_template(&block)`
+
+Called before rendering the template.
+
+```ruby
+private def before_template
+  @start_time = Time.now
+end
+```
+
+### `#after_template(&block)`
+
+Called after rendering the template.
+
+```ruby
+private def after_template
+  puts "Rendered in #{Time.now - @start_time}s"
+end
+```
+
+### `#render?`
+
+Control whether the component should render. Return `false` to skip rendering.
+
+```ruby
+private def render?
+  current_user.admin?
+end
+```
+
+## Customization Hooks
+
+### `#format_object(object)`
+
+Customize how objects are formatted for output. Override to support additional types.
+
+```ruby
+private def format_object(object)
+  case object
+  when Float, Integer
+    object.to_s
+  when BigDecimal
+    object.to_s('F')
+  end
+end
+```
+
+### `#cache_store`
+
+Provide a cache store implementation for `#cache` and `#low_level_cache`.
+
+```ruby
+private def cache_store
+  Rails.cache
+end
+```
+
+### `#app_version_key`
+
+Override to use a different deployment key for cache invalidation.
+
+```ruby
+private def app_version_key
+  ENV['APP_VERSION']
+end
+```
+
+### `#enable_cache_reloading?`
+
+Enable cache reloading during development. Returns `false` by default.
+
+```ruby
+private def enable_cache_reloading?
+  Rails.env.development?
+end
+```

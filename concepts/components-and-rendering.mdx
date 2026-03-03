@@ -1,0 +1,280 @@
+---
+title: 'Components and Rendering'
+description: 'Understanding how Phlex components work and the rendering lifecycle'
+---
+
+## Overview
+
+Phlex components are Ruby classes that inherit from `Phlex::HTML`, `Phlex::SVG`, or `Phlex::CSV`. They use the `view_template` method to define their output and support a rich lifecycle with hooks.
+
+## Creating Components
+
+Every Phlex component needs a `view_template` method:
+
+```ruby
+class HelloWorld < Phlex::HTML
+  def view_template
+    h1 { "Hello, World!" }
+  end
+end
+```
+
+## Rendering Components
+
+### Rendering to a String
+
+Use the `call` class method to render a component:
+
+```ruby
+HelloWorld.call
+# => "<h1>Hello, World!</h1>"
+```
+
+You can also instantiate and call:
+
+```ruby
+component = HelloWorld.new
+component.call
+# => "<h1>Hello, World!</h1>"
+```
+
+### Rendering Other Components
+
+Use the `render` method to render other components:
+
+```ruby
+class Layout < Phlex::HTML
+  def view_template(&block)
+    html do
+      head { title { "My Site" } }
+      body(&block)
+    end
+  end
+end
+
+class Page < Phlex::HTML
+  def view_template
+    render Layout.new do
+      h1 { "Welcome" }
+    end
+  end
+end
+```
+
+<Info>
+The `render` method accepts:
+- Phlex components (instances)
+- Component classes (will be instantiated)
+- Enumerables (renders each item)
+- Procs and Methods
+- Strings (outputs as plain text)
+</Info>
+
+## Component Initialization
+
+Pass data to components through the initializer:
+
+```ruby
+class UserCard < Phlex::HTML
+  def initialize(name:, email:)
+    @name = name
+    @email = email
+  end
+
+  def view_template
+    div class: "user-card" do
+      h2 { @name }
+      p { @email }
+    end
+  end
+end
+
+UserCard.new(name: "Alice", email: "alice@example.com").call
+```
+
+## Rendering Lifecycle
+
+Phlex provides lifecycle hooks that execute in this order:
+
+```ruby
+class MyComponent < Phlex::HTML
+  def view_template
+    h1 { "Main Content" }
+  end
+
+  private
+
+  # Called before view_template
+  def before_template
+    # Setup logic here
+  end
+
+  # Wraps around view_template
+  def around_template
+    div class: "wrapper" do
+      yield # Calls view_template
+    end
+  end
+
+  # Called after view_template
+  def after_template
+    # Cleanup logic here
+  end
+end
+```
+
+<Tabs>
+  <Tab title="before_template">
+    Called before rendering the template. Useful for setup logic:
+
+    ```ruby
+    def before_template
+      @start_time = Time.now
+    end
+    ```
+  </Tab>
+  <Tab title="around_template">
+    Wraps around the template rendering. You must call `yield`:
+
+    ```ruby
+    def around_template
+      div class: "container" do
+        yield # Renders view_template here
+      end
+    end
+    ```
+  </Tab>
+  <Tab title="after_template">
+    Called after rendering completes. Useful for cleanup or logging:
+
+    ```ruby
+    def after_template
+      @duration = Time.now - @start_time
+      puts "Rendered in #{@duration}s"
+    end
+    ```
+  </Tab>
+</Tabs>
+
+## Content Blocks
+
+Pass blocks to components for flexible layouts:
+
+```ruby
+class Card < Phlex::HTML
+  def view_template(&block)
+    div class: "card" do
+      if block_given?
+        yield_content(&block)
+      else
+        p { "No content provided" }
+      end
+    end
+  end
+end
+
+# Usage
+render Card.new do
+  h3 { "Title" }
+  p { "Body text" }
+end
+```
+
+<Note>
+Blocks passed to components are automatically stored and yielded during rendering. You don't need to explicitly capture them in `initialize`.
+</Note>
+
+## Checking Render State
+
+Use `rendering?` to check if a component is currently rendering:
+
+```ruby
+def view_template
+  if rendering?
+    h1 { "Currently rendering" }
+  end
+end
+```
+
+## Conditional Rendering
+
+Override `render?` to conditionally skip rendering:
+
+```ruby
+class AdminPanel < Phlex::HTML
+  def initialize(user:)
+    @user = user
+  end
+
+  def view_template
+    h1 { "Admin Panel" }
+    # ... admin content ...
+  end
+
+  private
+
+  def render?
+    @user.admin?
+  end
+end
+```
+
+<Warning>
+If `render?` returns `false`, the component won't render at all, including lifecycle hooks.
+</Warning>
+
+## Context
+
+Pass context between components:
+
+```ruby
+# Pass context when rendering
+component.call(context: { current_user: user })
+
+# Access context in components
+class MyComponent < Phlex::HTML
+  def view_template
+    user = context[:current_user]
+    h1 { "Hello, #{user.name}" }
+  end
+end
+```
+
+## Double Render Protection
+
+Phlex prevents rendering the same component instance twice:
+
+```ruby
+component = MyComponent.new
+component.call # Works
+component.call # Raises Phlex::DoubleRenderError
+```
+
+<Tip>
+Create new instances if you need to render the same component multiple times.
+</Tip>
+
+## Converting to Proc
+
+Components can be converted to procs for use with enumerables:
+
+```ruby
+class UserRow < Phlex::HTML
+  def initialize(user)
+    @user = user
+  end
+
+  def view_template
+    tr do
+      td { @user.name }
+      td { @user.email }
+    end
+  end
+end
+
+# Use with render
+render users.map { |u| UserRow.new(u) }
+
+# Or more concisely
+users.each(&UserRow.method(:new).to_proc)
+```

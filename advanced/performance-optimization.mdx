@@ -1,0 +1,294 @@
+---
+title: Performance Optimization
+description: Optimize Phlex component rendering performance with compilation, attribute caching, and efficient patterns
+---
+
+Phlex is designed for high performance out of the box. This guide covers advanced optimization techniques to maximize rendering speed.
+
+## Compilation
+
+Phlex includes an experimental compiler that optimizes your view templates by converting method calls into direct string concatenation.
+
+### How Compilation Works
+
+The compiler analyzes your `view_template` methods using the Prism parser and transforms element method calls into optimized string operations:
+
+```ruby lib/phlex/compiler/method_compiler.rb
+# Before compilation (standard Ruby method calls)
+def view_template
+  div(class: "container") do
+    h1 { "Welcome" }
+  end
+end
+
+# After compilation (optimized string concatenation)
+def view_template
+  __phlex_buffer__ << "<div class=\"container\"><h1>"
+  __phlex_buffer__ << "Welcome"
+  __phlex_buffer__ << "</h1></div>"
+end
+```
+
+The compiler is located in `lib/phlex/compiler/` and includes:
+- **MethodCompiler**: Optimizes individual methods (lib/phlex/compiler/method_compiler.rb:6)
+- **ClassCompiler**: Compiles all methods in a component class (lib/phlex/compiler/class_compiler.rb:3)
+- **FileCompiler**: Processes entire files (lib/phlex/compiler/file_compiler.rb:3)
+
+### Manual Compilation
+
+You can manually compile methods using the `__compile__` class method:
+
+```ruby
+class MyComponent < Phlex::HTML
+  def view_template
+    div { "Hello" }
+  end
+end
+
+# Compile the view_template method
+MyComponent.__compile__(:view_template)
+```
+
+<Note>
+Compilation is experimental and happens automatically for `view_template` methods defined in files. Manual compilation is rarely needed.
+</Note>
+
+### What Gets Optimized
+
+The compiler optimizes:
+- Standard HTML elements (`div`, `span`, `h1`, etc.)
+- Void elements (`img`, `input`, `br`, etc.)
+- Static attributes with literal values
+- Helper methods like `plain`, `whitespace`, `comment`
+- Static string content in blocks
+
+Code that cannot be optimized falls back to standard method calls.
+
+## Attribute Caching
+
+Phlex uses a FIFO (First In, First Out) cache to store pre-rendered attribute strings, eliminating the need to regenerate them on every render.
+
+### How It Works
+
+When you render an element with attributes, Phlex:
+
+1. Generates the attribute string (e.g., ` class="btn" id="submit"`)
+2. Caches it using the attributes hash as the key
+3. On subsequent renders, retrieves the cached string instead of regenerating it
+
+```ruby lib/phlex/sgml.rb:421
+private def __render_attributes__(attributes)
+  state = @_state
+  return unless state.should_render?
+  state.buffer << (Phlex::ATTRIBUTE_CACHE[attributes] ||= 
+    Phlex::SGML::Attributes.generate_attributes(attributes))
+end
+```
+
+### Cache Configuration
+
+The attribute cache is a global FIFO cache with default limits:
+
+```ruby lib/phlex/fifo.rb:5
+class Phlex::FIFO
+  def initialize(max_bytesize: 2_000, max_value_bytesize: 2_000)
+    @store = {}
+    @max_bytesize = max_bytesize
+    @max_value_bytesize = max_value_bytesize
+    @bytesize = 0
+  end
+end
+```
+
+- **max_bytesize**: Total cache size (default 2KB)
+- **max_value_bytesize**: Maximum size per cached value (default 2KB)
+
+The cache automatically expands based on file sizes when loading components:
+
+```ruby lib/phlex.rb:32
+def self.__expand_attribute_cache__(file_path)
+  unless CACHED_FILES.include?(file_path)
+    CACHED_FILES << file_path
+    Phlex::ATTRIBUTE_CACHE.expand(File.size(file_path))
+  end
+end
+```
+
+<Tip>
+The attribute cache is most effective when you reuse the same attribute combinations across multiple renders.
+</Tip>
+
+### Maximizing Cache Effectiveness
+
+**Do this** - Reuse attribute hashes:
+
+```ruby
+class ButtonComponent < Phlex::HTML
+  PRIMARY_ATTRS = { class: "btn btn-primary", role: "button" }.freeze
+  
+  def view_template
+    button(**PRIMARY_ATTRS) { "Click me" }
+  end
+end
+```
+
+**Avoid this** - Creating new attribute hashes every time:
+
+```ruby
+class ButtonComponent < Phlex::HTML
+  def view_template
+    # New hash object created on each render
+    button(class: "btn btn-primary", role: "button") { "Click me" }
+  end
+end
+```
+
+## Component Caching
+
+Cache expensive rendering operations to avoid redundant work:
+
+```ruby
+class ProductCard < Phlex::HTML
+  def initialize(product)
+    @product = product
+  end
+  
+  def view_template
+    # Cache based on product object
+    cache(@product) do
+      div(class: "product") do
+        h2 { @product.name }
+        p { markdown(@product.description) }
+      end
+    end
+  end
+  
+  private def cache_store
+    Rails.cache # or any cache store
+  end
+end
+```
+
+The `cache` method generates a comprehensive cache key:
+
+```ruby lib/phlex/sgml.rb:237
+full_key = [
+  app_version_key,                                   # invalidates on deploy
+  self.class.name,                                   # prevents collisions
+  (self.class.object_id if enable_cache_reloading?), # enables reloading
+  location.base_label,                               # prevents method collisions
+  location.lineno,                                   # prevents line collisions
+  cache_key,                                         # custom cache keys
+].freeze
+```
+
+<Note>
+You must implement the `cache_store` method to use component caching.
+</Note>
+
+## Performance Best Practices
+
+### Minimize Method Calls in Loops
+
+**Slow**:
+```ruby
+def view_template
+  ul do
+    @items.each do |item|
+      li { render ItemComponent.new(item) }
+    end
+  end
+end
+```
+
+**Faster**:
+```ruby
+def view_template
+  ul do
+    @items.each do |item|
+      li { item.name } # Inline simple content
+    end
+  end
+end
+```
+
+### Avoid Unnecessary String Allocations
+
+**Slow**:
+```ruby
+def view_template
+  div { "Hello " + @name + "!" } # Creates multiple string objects
+end
+```
+
+**Faster**:
+```ruby
+def view_template
+  div { "Hello #{@name}!" } # Single interpolated string
+end
+```
+
+### Use `format_object` for Custom Types
+
+Override `format_object` to handle custom objects efficiently:
+
+```ruby lib/phlex/sgml.rb:315
+private def format_object(object)
+  case object
+  when Float, Integer
+    object.to_s
+  end
+end
+```
+
+Custom implementation:
+
+```ruby
+class MyComponent < Phlex::HTML
+  private def format_object(object)
+    case object
+    when Money
+      object.format # Your custom formatting
+    else
+      super
+    end
+  end
+end
+```
+
+### Buffer Management
+
+Phlex uses a string buffer for output. Understanding this helps optimize rendering:
+
+```ruby lib/phlex/sgml.rb:38
+def call(buffer = +"", context: {}, fragments: nil, &)
+  state = Phlex::SGML::State.new(
+    user_context: context,
+    output_buffer: buffer,
+    fragments: fragments&.to_set,
+  )
+  
+  internal_call(parent: nil, state:, &)
+  state.output_buffer << state.buffer
+end
+```
+
+The `+""` syntax creates a mutable string optimized for concatenation.
+
+## Benchmarking
+
+Always benchmark your specific use case:
+
+```ruby
+require "benchmark/ips"
+
+Benchmark.ips do |x|
+  x.report("uncached") { MyComponent.new.call }
+  x.report("cached") { CachedComponent.new.call }
+  x.compare!
+end
+```
+
+<Warning>
+Premature optimization is the root of all evil. Profile your application before optimizing.
+</Warning>

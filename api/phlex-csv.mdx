@@ -1,0 +1,492 @@
+---
+title: Phlex::CSV
+description: Generate CSV files with automatic escaping, custom delimiters, and CSV injection protection.
+---
+
+# Phlex::CSV
+
+Class for generating CSV (Comma-Separated Values) files in Phlex. Provides robust CSV generation with configurable escaping, delimiters, and CSV injection protection.
+
+## Usage
+
+Create a CSV component by subclassing `Phlex::CSV` and defining a `row_template` method:
+
+```ruby
+class ProductsCSV < Phlex::CSV
+  # Required: configure CSV injection protection
+  def escape_csv_injection?
+    true # or false depending on your use case
+  end
+  
+  def row_template(product)
+    column "Name", product.name
+    column "Price", product.price
+    column "Stock", product.stock
+  end
+end
+
+products = [
+  Product.new("Apple", 1.50, 100),
+  Product.new("Banana", 0.75, 200)
+]
+
+ProductsCSV.new(products).call
+# => "Name,Price,Stock\nApple,1.5,100\nBanana,0.75,200\n"
+```
+
+## Constructor
+
+### `initialize(collection)`
+
+Create a new CSV renderer with a collection of items.
+
+```ruby
+ProductsCSV.new(@products)
+```
+
+<ParamField path="collection" type="Enumerable" required>
+  Collection of items to render as CSV rows
+</ParamField>
+
+### `collection`
+
+Access the collection passed to the constructor.
+
+```ruby
+attr_reader :collection
+```
+
+## Instance Methods
+
+### `#call(buffer = +"", context: nil, delimiter: self.delimiter)`
+
+Render the CSV and return the output string.
+
+```ruby
+csv = ProductsCSV.new(products)
+output = csv.call
+
+# With custom delimiter
+output = csv.call(delimiter: ";")
+```
+
+<ParamField path="buffer" type="String" default='+""'>
+  Output buffer to append to
+</ParamField>
+
+<ParamField path="context" type="Object" optional>
+  Context object (reserved for future use)
+</ParamField>
+
+<ParamField path="delimiter" type="String" default="self.delimiter">
+  Column delimiter (must be a single character)
+</ParamField>
+
+<Warning>
+Raises `Phlex::ArgumentError` if delimiter is not a single character.
+</Warning>
+
+### `#row_template(...)`
+
+Define the template for each row. Override this method in your CSV class.
+
+```ruby
+class UsersCSV < Phlex::CSV
+  def escape_csv_injection? = true
+  
+  def row_template(user)
+    column "ID", user.id
+    column "Name", user.name
+    column "Email", user.email
+    column "Created", user.created_at
+  end
+end
+```
+
+<Note>
+The arguments to `row_template` are determined by what you pass to `each_item` or `around_row`.
+</Note>
+
+### `#around_row(...)`
+
+Wrap row rendering with custom logic. Call `super` to render the row.
+
+```ruby
+class ReportCSV < Phlex::CSV
+  def escape_csv_injection? = true
+  
+  def around_row(record)
+    # Transform data before rendering
+    super(record.name, record.calculated_value)
+  end
+  
+  def row_template(name, value)
+    column "Name", name
+    column "Value", value
+  end
+end
+```
+
+<ParamField path="..." type="Any">
+  Arguments passed from `each_item` loop
+</ParamField>
+
+### `#content_type`
+
+Returns the MIME type for CSV content.
+
+```ruby
+ProductsCSV.new([]).content_type # => "text/csv"
+```
+
+**Returns:** `"text/csv"`
+
+### `#filename`
+
+Override to provide a filename when serving the CSV file.
+
+```ruby
+class SalesReport < Phlex::CSV
+  def filename
+    "sales-#{Date.today}.csv"
+  end
+end
+```
+
+**Default:** `nil`
+
+### `#delimiter`
+
+Override to set a default delimiter. Default is comma (`,`).
+
+```ruby
+class EuropeanCSV < Phlex::CSV
+  def delimiter
+    ";" # Common in European locales
+  end
+end
+```
+
+**Default:** `","`
+
+## Protected Methods
+
+### `#column(header = nil, value)`
+
+Define a column in the current row.
+
+```ruby
+def row_template(product)
+  column "Product Name", product.name
+  column "Price (USD)", product.price
+  column nil, product.id # Header from first call will be used
+end
+```
+
+<ParamField path="header" type="String" optional>
+  Column header (nil uses header from first row)
+</ParamField>
+
+<ParamField path="value" type="String | Symbol | Numeric" required>
+  Column value (converted to string with to_s)
+</ParamField>
+
+<Warning>
+Column order and headers must be consistent across all rows, or a `Phlex::RuntimeError` will be raised.
+</Warning>
+
+### `#each_item(&block)`
+
+Override to customize iteration over the collection.
+
+```ruby
+def each_item(&block)
+  collection.select(&:active?).each(&block)
+end
+```
+
+**Default:** Iterates over `collection` with `each`
+
+## Configuration Methods
+
+### `#render_headers?`
+
+Control whether to render the header row. Override to return `false` to skip headers.
+
+```ruby
+class NoHeaderCSV < Phlex::CSV
+  def escape_csv_injection? = false
+  
+  private def render_headers?
+    false
+  end
+end
+
+# Output:
+# Apple,1.5
+# Banana,0.75
+# (no header row)
+```
+
+**Default:** `true`
+
+### `#trim_whitespace?`
+
+Control whether to strip leading and trailing whitespace from values.
+
+```ruby
+class TrimmedCSV < Phlex::CSV
+  def escape_csv_injection? = false
+  
+  private def trim_whitespace?
+    true
+  end
+end
+
+# Input: " Hello "
+# Output with trim: "Hello"
+# Output without trim: " Hello "
+```
+
+**Default:** `false`
+
+### `#escape_csv_injection?`
+
+**REQUIRED:** Configure CSV injection protection. Must be explicitly set to `true` or `false`.
+
+```ruby
+class SafeCSV < Phlex::CSV
+  # Enable protection: prefixes dangerous characters with '
+  def escape_csv_injection?
+    true
+  end
+end
+
+class UnsafeCSV < Phlex::CSV
+  # Disable protection: use for data exchange between secure systems
+  def escape_csv_injection?
+    false
+  end
+end
+```
+
+<Warning>
+CSV injection is a security vulnerability where malicious spreadsheet formulae execute code or exfiltrate data when opened in Excel or Google Sheets.
+
+Learn more: [OWASP CSV Injection](https://owasp.org/www-community/attacks/CSV_Injection)
+</Warning>
+
+<Note>
+When enabled, values starting with `=`, `+`, `-`, `@`, `\t`, or `\r` are prefixed with a single quote `'` to prevent formula execution.
+</Note>
+
+## CSV Injection Protection
+
+The library requires explicit configuration to handle CSV injection vulnerabilities:
+
+### Enable Protection (Data Integrity Trade-off)
+
+```ruby
+class PublicExportCSV < Phlex::CSV
+  def escape_csv_injection? = true
+  
+  def row_template(item)
+    column "Name", item.name
+    column "Formula", item.formula # If starts with =, becomes '=...
+  end
+end
+```
+
+**Use when:**
+- CSV will be opened in spreadsheet applications
+- User-generated content is included
+- Security is prioritized over exact data representation
+
+**Effect:**
+- Prefixes dangerous characters with `'`
+- Prevents formula execution
+- May alter data appearance
+
+### Disable Protection (Security Trade-off)
+
+```ruby
+class SystemExportCSV < Phlex::CSV
+  def escape_csv_injection? = false
+  
+  def row_template(item)
+    column "Name", item.name
+    column "Value", item.value # Output exactly as-is
+  end
+end
+```
+
+**Use when:**
+- CSV is for data exchange between secure systems
+- CSV will never be opened in spreadsheet software
+- Exact byte-for-byte data integrity is required
+
+**Effect:**
+- No modification of values
+- Perfect data integrity
+- Vulnerable to CSV injection if opened in spreadsheets
+
+## Examples
+
+### Basic CSV Export
+
+```ruby
+class UsersCSV < Phlex::CSV
+  def escape_csv_injection? = true
+  
+  def row_template(user)
+    column "ID", user.id
+    column "Name", user.name
+    column "Email", user.email
+    column "Role", user.role
+  end
+end
+
+users = User.all
+UsersCSV.new(users).call
+```
+
+### Custom Delimiter (European Format)
+
+```ruby
+class EuropeanReport < Phlex::CSV
+  def escape_csv_injection? = true
+  
+  def delimiter
+    ";" # Semicolon for European Excel
+  end
+  
+  def row_template(item)
+    column "Nom", item.name
+    column "Prix", item.price
+  end
+end
+```
+
+### Trimming Whitespace
+
+```ruby
+class CleanCSV < Phlex::CSV
+  def escape_csv_injection? = false
+  
+  private def trim_whitespace?
+    true
+  end
+  
+  def row_template(item)
+    column "Name", item.name # " John " becomes "John"
+  end
+end
+```
+
+### Without Headers
+
+```ruby
+class DataOnlyCSV < Phlex::CSV
+  def escape_csv_injection? = false
+  
+  private def render_headers?
+    false
+  end
+  
+  def row_template(item)
+    column "Col1", item.a # Header not rendered
+    column "Col2", item.b
+  end
+end
+```
+
+### Custom Iteration
+
+```ruby
+class FilteredCSV < Phlex::CSV
+  def escape_csv_injection? = true
+  
+  private def each_item(&block)
+    collection.select(&:published?).sort_by(&:created_at).each(&block)
+  end
+  
+  def row_template(article)
+    column "Title", article.title
+    column "Date", article.published_at
+  end
+end
+```
+
+### Transform Data with around_row
+
+```ruby
+class SalesCSV < Phlex::CSV
+  def escape_csv_injection? = true
+  
+  def around_row(sale)
+    # Calculate totals before rendering
+    total = sale.quantity * sale.unit_price
+    tax = total * 0.2
+    
+    super(sale, total, tax)
+  end
+  
+  def row_template(sale, total, tax)
+    column "Product", sale.product_name
+    column "Quantity", sale.quantity
+    column "Unit Price", sale.unit_price
+    column "Total", total
+    column "Tax", tax
+  end
+end
+```
+
+### Dynamic Filename
+
+```ruby
+class MonthlyReport < Phlex::CSV
+  def initialize(collection, month:)
+    super(collection)
+    @month = month
+  end
+  
+  def filename
+    "report-#{@month.strftime('%Y-%m')}.csv"
+  end
+  
+  def escape_csv_injection? = true
+  
+  def row_template(record)
+    column "Date", record.date
+    column "Amount", record.amount
+  end
+end
+```
+
+### Multiple Rows Per Item
+
+```ruby
+class DetailedOrdersCSV < Phlex::CSV
+  def escape_csv_injection? = true
+  
+  def around_row(order)
+    # Output multiple rows for each order
+    order.line_items.each do |item|
+      super(order.id, order.customer_name, item.product, item.quantity)
+    end
+  end
+  
+  def row_template(order_id, customer, product, quantity)
+    column "Order ID", order_id
+    column "Customer", customer
+    column "Product", product
+    column "Quantity", quantity
+  end
+end
+```
+
+## See Also
+
+- [Phlex::SGML](/api/phlex-sgml) - Base class for HTML/SVG views
+- [Phlex::HTML](/api/phlex-html) - HTML-specific component class
+- [OWASP CSV Injection](https://owasp.org/www-community/attacks/CSV_Injection) - Security considerations

@@ -1,0 +1,464 @@
+---
+title: Attributes & Styling
+description: Learn how attributes work in Phlex, including the mix helper for merging attributes and styling patterns
+---
+
+Phlex provides a powerful and safe attribute system with special handling for classes, styles, and data attributes.
+
+## Basic Attributes
+
+Pass attributes as keyword arguments to element methods:
+
+```ruby
+class Example < Phlex::HTML
+  def view_template
+    div(id: "main", class: "container") do
+      h1 { "Hello" }
+    end
+  end
+end
+# => <div id="main" class="container"><h1>Hello</h1></div>
+```
+
+## Attribute Types
+
+### String Attributes
+
+```ruby
+div(attribute: "test")
+# => <div attribute="test"></div>
+
+a(href: "/about", title: "Learn more") { "About" }
+# => <a href="/about" title="Learn more">About</a>
+```
+
+### Symbol Attributes
+
+Symbols are converted to strings with underscores replaced by hyphens:
+
+```ruby
+div(data_controller: :user_profile)
+# => <div data-controller="user-profile"></div>
+
+button(type: :submit) { "Submit" }
+# => <button type="submit">Submit</button>
+```
+
+### Boolean Attributes
+
+```ruby
+input(type: "checkbox", checked: true, disabled: false)
+# => <input type="checkbox" checked>
+
+button(disabled: true) { "Submit" }
+# => <button disabled>Submit</button>
+```
+
+### Numeric Attributes
+
+```ruby
+input(type: "number", min: 0, max: 100, value: 42)
+# => <input type="number" min="0" max="100" value="42">
+
+div(data: { count: 42, ratio: 1.5 })
+# => <div data-count="42" data-ratio="1.5"></div>
+```
+
+### Date and Time Attributes
+
+```ruby
+time(datetime: Date.new(2023, 1, 15)) { "January 15" }
+# => <time datetime="2023-01-15">January 15</time>
+
+time(datetime: Time.new(2023, 1, 15, 12, 30, 45, "+00:00"))
+# => <time datetime="2023-01-15T12:30:45+00:00"></time>
+```
+
+### Nil Attributes
+
+Nil values are omitted from the output:
+
+```ruby
+div(class: nil, id: "main")
+# => <div id="main"></div>
+
+button(disabled: false) { "Enabled" }
+# => <button>Enabled</button>
+```
+
+## Array Attributes
+
+Arrays are joined with spaces:
+
+```ruby
+div(class: ["container", "mx-auto", "px-4"])
+# => <div class="container mx-auto px-4"></div>
+
+div(attribute: ["hello", "world", nil, "test"])
+# => <div attribute="hello world test"></div>
+```
+
+## Hash Attributes
+
+Hashes create nested attributes with dashes:
+
+```ruby
+div(data: { controller: "hello", action: "click->hello#greet" })
+# => <div data-controller="hello" data-action="click->hello#greet"></div>
+
+# Nested hashes
+div(data: { user: { id: 123, name: "John" } })
+# => <div data-user-id="123" data-user-name="John"></div>
+```
+
+### Special `_` Key
+
+Use the `_` key to set the attribute itself:
+
+```ruby
+div(data: { _: "test", controller: "hello" })
+# => <div data="test" data-controller="hello"></div>
+```
+
+## The Mix Helper
+
+The `mix` helper merges multiple attribute hashes, with smart handling for different types:
+
+```ruby
+class Button < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(**attributes)
+    @attributes = attributes
+  end
+
+  def view_template(&block)
+    button(**default_attributes, &block)
+  end
+
+  private
+
+  def default_attributes
+    mix(
+      { class: "btn", type: "button" },
+      @attributes
+    )
+  end
+end
+
+Button.new(class: "btn-primary").call { "Click me" }
+# => <button class="btn btn-primary" type="button">Click me</button>
+```
+
+### String + String
+
+```ruby
+mix({ class: "foo" }, { class: "bar" })
+# => { class: "foo bar" }
+```
+
+### Array + Array
+
+```ruby
+mix({ class: ["foo"] }, { class: ["bar"] })
+# => { class: ["foo", "bar"] }
+```
+
+### String + Array
+
+```ruby
+mix({ class: "foo" }, { class: ["bar", "baz"] })
+# => { class: ["foo", "bar", "baz"] }
+```
+
+### Array + String
+
+```ruby
+mix({ class: ["foo"] }, { class: "bar" })
+# => { class: ["foo", "bar"] }
+```
+
+### Hash + Hash
+
+```ruby
+mix(
+  { data: { controller: "foo" } },
+  { data: { controller: "bar" } }
+)
+# => { data: { controller: "foo bar" } }
+```
+
+### Array + Hash
+
+```ruby
+mix(
+  { data: ["foo"] },
+  { data: { controller: "bar" } }
+)
+# => { data: { _: ["foo"], controller: "bar" } }
+```
+
+### Nil Handling
+
+```ruby
+mix({ class: "foo" }, { class: nil })
+# => { class: "foo" }
+
+mix({ class: nil }, { class: "bar" })
+# => { class: "bar" }
+```
+
+## Override with `!` Suffix
+
+Use the `!` suffix to override instead of merge:
+
+```ruby
+mix({ class: "foo" }, { class!: "bar" })
+# => { class: "bar" }
+```
+
+## Style Attributes
+
+### Style as String
+
+```ruby
+div(style: "color: blue; font-weight: bold")
+# => <div style="color: blue; font-weight: bold"></div>
+```
+
+### Style as Hash
+
+```ruby
+div(style: { color: "blue", font_weight: "bold" })
+# => <div style="color: blue; font-weight: bold;"></div>
+
+# With numeric values
+div(style: { line_height: 1.5, z_index: 10 })
+# => <div style="line-height: 1.5; z-index: 10;"></div>
+
+# With symbol values
+div(style: { flex_direction: :column_reverse })
+# => <div style="flex-direction: column-reverse;"></div>
+```
+
+### Style as Array
+
+```ruby
+div(style: ["color: blue;", "font-weight: bold"])
+# => <div style="color: blue; font-weight: bold;"></div>
+
+# Mix strings and hashes
+div(style: [
+  "color: blue;",
+  { font_weight: "bold", line_height: 1.5 }
+])
+# => <div style="color: blue; font-weight: bold; line-height: 1.5;"></div>
+```
+
+## ID Attribute Rules
+
+The `:id` attribute must be a lowercase symbol:
+
+```ruby
+div(id: "main")      # ✅ Correct
+div(:id => "main")   # ✅ Correct
+div("id" => "main")  # ❌ Raises Phlex::ArgumentError
+div(:ID => "main")   # ❌ Raises Phlex::ArgumentError
+```
+
+<Warning>
+  Phlex enforces lowercase `:id` symbols to prevent attribute confusion and ensure consistency.
+</Warning>
+
+## Security Features
+
+### Unsafe Attribute Names
+
+Phlex blocks dangerous attribute names:
+
+```ruby
+# ❌ These all raise Phlex::ArgumentError
+div(onclick: "alert('xss')")
+div(srcdoc: "<script>...</script>")
+div(sandbox: "allow-scripts")
+div("http-equiv": "refresh")
+```
+
+### JavaScript URL Protection
+
+Phlex automatically filters `javascript:` URLs:
+
+```ruby
+a(href: "javascript:alert('xss')") { "Click" }
+# => <a>Click</a>  (href is omitted)
+
+a(href: "/safe/path") { "Click" }
+# => <a href="/safe/path">Click</a>
+```
+
+### Safe Objects
+
+Use `safe` to mark trusted content:
+
+```ruby
+div(data: { content: safe("<b>Bold</b>") })
+# => <div data-content="<b>Bold</b>"></div>
+```
+
+## Real-World Patterns
+
+### Conditional Classes
+
+```ruby
+class Card < Phlex::HTML
+  def initialize(featured: false, size: :medium)
+    @featured = featured
+    @size = size
+  end
+
+  def view_template(&block)
+    div(class: card_classes, &block)
+  end
+
+  private
+
+  def card_classes
+    [
+      "card",
+      @featured ? "card-featured" : nil,
+      "card-#{@size}"
+    ]
+  end
+end
+```
+
+### Merging User Attributes
+
+```ruby
+class Button < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(variant: :primary, **user_attributes)
+    @variant = variant
+    @user_attributes = user_attributes
+  end
+
+  def view_template(&block)
+    button(**button_attributes, &block)
+  end
+
+  private
+
+  def button_attributes
+    mix(
+      base_attributes,
+      variant_attributes,
+      @user_attributes
+    )
+  end
+
+  def base_attributes
+    {
+      type: "button",
+      class: "btn"
+    }
+  end
+
+  def variant_attributes
+    case @variant
+    when :primary
+      { class: "btn-primary" }
+    when :secondary
+      { class: "btn-secondary" }
+    when :danger
+      { class: "btn-danger" }
+    end
+  end
+end
+
+Button.new(variant: :primary, class: "mt-4", data: { action: "click" }).call
+# => <button type="button" class="btn btn-primary mt-4" data-action="click">...</button>
+```
+
+### Stimulus Integration
+
+```ruby
+class Dropdown < Phlex::HTML
+  include Phlex::Helpers
+
+  def initialize(**attributes)
+    @attributes = attributes
+  end
+
+  def view_template(&block)
+    div(**dropdown_attributes) do
+      button(**trigger_attributes) { "Toggle" }
+      div(**menu_attributes, &block)
+    end
+  end
+
+  private
+
+  def dropdown_attributes
+    mix(
+      { data: { controller: "dropdown" } },
+      @attributes
+    )
+  end
+
+  def trigger_attributes
+    {
+      data: { action: "click->dropdown#toggle" }
+    }
+  end
+
+  def menu_attributes
+    {
+      data: { dropdown_target: "menu" },
+      class: "dropdown-menu"
+    }
+  end
+end
+```
+
+### Dynamic Data Attributes
+
+```ruby
+class ProductCard < Phlex::HTML
+  def initialize(product)
+    @product = product
+  end
+
+  def view_template
+    article(**card_attributes) do
+      h2 { @product.name }
+      p { @product.description }
+    end
+  end
+
+  private
+
+  def card_attributes
+    {
+      class: "product-card",
+      data: {
+        controller: "product",
+        product_id_value: @product.id,
+        product_price_value: @product.price,
+        product_available_value: @product.available?,
+        product: {
+          name: @product.name,
+          sku: @product.sku
+        }
+      }
+    }
+  end
+end
+# => <article class="product-card" 
+#              data-controller="product"
+#              data-product-id-value="123"
+#              data-product-price-value="29.99"
+#              data-product-available-value="true"
+#              data-product-name="Widget"
+#              data-product-sku="WDG-001">...</article>
+```

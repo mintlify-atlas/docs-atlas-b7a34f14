@@ -1,0 +1,419 @@
+---
+title: 'Helpers and Utilities'
+description: 'Using mix and grab helpers for working with attributes and data'
+---
+
+## Overview
+
+Phlex includes built-in helpers that make it easier to work with attributes, especially for merging classes and data attributes. The two main helpers are `mix` and `grab`.
+
+## The mix Helper
+
+The `mix` helper intelligently merges hashes, particularly useful for combining attributes:
+
+```ruby
+class Button < Phlex::HTML
+  def initialize(type: "button", **attributes)
+    @type = type
+    @attributes = attributes
+  end
+
+  def view_template(&block)
+    button(**default_attributes, **@attributes, &block)
+  end
+
+  private
+
+  def default_attributes
+    { type: @type, class: "btn" }
+  end
+end
+```
+
+But this doesn't merge classes properly. Use `mix` instead:
+
+```ruby
+class Button < Phlex::HTML
+  def initialize(type: "button", **attributes)
+    @type = type
+    @attributes = attributes
+  end
+
+  def view_template(&block)
+    button(**mix(default_attributes, @attributes), &block)
+  end
+
+  private
+
+  def default_attributes
+    { type: @type, class: "btn" }
+  end
+end
+
+Button.new(class: "btn-primary").call { "Click" }
+# => <button type="button" class="btn btn-primary">Click</button>
+```
+
+## Merging Behavior
+
+The `mix` helper has intelligent merging rules:
+
+### Strings
+
+Strings are joined with spaces:
+
+```ruby
+mix(
+  { class: "btn" },
+  { class: "btn-primary" }
+)
+# => { class: "btn btn-primary" }
+```
+
+### Arrays
+
+Arrays are concatenated:
+
+```ruby
+mix(
+  { class: ["btn"] },
+  { class: ["btn-primary"] }
+)
+# => { class: ["btn", "btn-primary"] }
+```
+
+### Sets
+
+Sets are merged:
+
+```ruby
+mix(
+  { class: Set["btn"] },
+  { class: Set["btn-primary"] }
+)
+# => { class: #<Set: {"btn", "btn-primary"}> }
+```
+
+### Hashes
+
+Hashes are recursively merged:
+
+```ruby
+mix(
+  { data: { controller: "dropdown" } },
+  { data: { action: "click->dropdown#toggle" } }
+)
+# => { data: { controller: "dropdown", action: "click->dropdown#toggle" } }
+```
+
+### Mixed Types
+
+Different types are intelligently combined:
+
+```ruby
+# String + Array
+mix(
+  { class: "btn" },
+  { class: ["btn-primary", "active"] }
+)
+# => { class: ["btn", "btn-primary", "active"] }
+
+# String + Set
+mix(
+  { class: "btn" },
+  { class: Set["btn-primary"] }
+)
+# => { class: ["btn", "btn-primary"] }
+```
+
+### Nil Values
+
+Nil values don't override existing values:
+
+```ruby
+mix(
+  { class: "btn" },
+  { class: nil }
+)
+# => { class: "btn" }
+```
+
+## Practical Examples
+
+### Base Component with Default Styles
+
+```ruby
+class Card < Phlex::HTML
+  def initialize(**attributes)
+    @attributes = attributes
+  end
+
+  def view_template(&block)
+    div(**mix(base_attributes, @attributes), &block)
+  end
+
+  private
+
+  def base_attributes
+    {
+      class: "card",
+      data: { controller: "card" }
+    }
+  end
+end
+
+# Usage
+render Card.new(
+  class: "card-highlighted",
+  data: { card_id_value: 123 }
+) do
+  h3 { "Title" }
+end
+
+# Result:
+# <div class="card card-highlighted" 
+#      data-controller="card"
+#      data-card-id-value="123">
+#   <h3>Title</h3>
+# </div>
+```
+
+### Conditional Attributes
+
+```ruby
+class Alert < Phlex::HTML
+  def initialize(type:, dismissible: false, **attributes)
+    @type = type
+    @dismissible = dismissible
+    @attributes = attributes
+  end
+
+  def view_template(&block)
+    div(**mix(base_attributes, @attributes), &block)
+  end
+
+  private
+
+  def base_attributes
+    mix(
+      { class: ["alert", "alert-#{@type}"] },
+      @dismissible ? dismissible_attributes : {}
+    )
+  end
+
+  def dismissible_attributes
+    {
+      class: "alert-dismissible",
+      data: { controller: "alert" }
+    }
+  end
+end
+```
+
+### Multiple Levels of Inheritance
+
+```ruby
+class BaseButton < Phlex::HTML
+  def initialize(**attributes)
+    @attributes = attributes
+  end
+
+  def view_template(&block)
+    button(**mix(base_attributes, @attributes), &block)
+  end
+
+  private
+
+  def base_attributes
+    { class: "btn", type: "button" }
+  end
+end
+
+class PrimaryButton < BaseButton
+  private
+
+  def base_attributes
+    mix(super, { class: "btn-primary" })
+  end
+end
+
+class LargePrimaryButton < PrimaryButton
+  private
+
+  def base_attributes
+    mix(super, { class: "btn-lg" })
+  end
+end
+
+LargePrimaryButton.new(class: "custom").call { "Click" }
+# => <button type="button" class="btn btn-primary btn-lg custom">Click</button>
+```
+
+## The grab Helper
+
+The `grab` helper extracts values from keyword arguments:
+
+```ruby
+def view_template
+  title = grab(title: "Default Title")
+  # title = "Default Title"
+end
+```
+
+### Single Value
+
+Extract one value:
+
+```ruby
+class Modal < Phlex::HTML
+  def initialize(**options)
+    @title = grab(options, title: "Untitled")
+    @size = grab(options, size: "medium")
+  end
+
+  def view_template
+    div class: "modal modal-#{@size}" do
+      h2 { @title }
+    end
+  end
+end
+```
+
+### Multiple Values
+
+Extract multiple values as an array:
+
+```ruby
+class Form < Phlex::HTML
+  def initialize(**options)
+    @method, @action = grab(options, method: "post", action: "/submit")
+  end
+
+  def view_template(&block)
+    form method: @method, action: @action, &block
+  end
+end
+```
+
+<Info>
+When you pass multiple bindings to `grab`, it returns an array of values. With a single binding, it returns just the value.
+</Info>
+
+## Combining mix and grab
+
+Use both helpers together for flexible components:
+
+```ruby
+class FlexibleCard < Phlex::HTML
+  def initialize(**options)
+    @title = grab(options, title: nil)
+    @attributes = options # Remaining options
+  end
+
+  def view_template(&block)
+    div(**mix(base_attributes, @attributes)) do
+      h3 { @title } if @title
+      div(class: "card-body", &block)
+    end
+  end
+
+  private
+
+  def base_attributes
+    {
+      class: "card",
+      data: { controller: "card" }
+    }
+  end
+end
+
+# Usage
+render FlexibleCard.new(
+  title: "My Card",
+  class: "shadow",
+  data: { card_id_value: 123 }
+) do
+  p { "Card content" }
+end
+```
+
+## Force Attribute Replacement
+
+Use the `!` suffix to force attribute replacement instead of merging:
+
+```ruby
+mix(
+  { class: "btn" },
+  { class!: "completely-different" }
+)
+# => { class: "completely-different" }
+```
+
+<Warning>
+The `!` suffix removes the exclamation mark from the key name and replaces the value entirely instead of merging.
+</Warning>
+
+## Nested Data Attributes
+
+Combine nested data attributes elegantly:
+
+```ruby
+class Dropdown < Phlex::HTML
+  def initialize(**attributes)
+    @attributes = attributes
+  end
+
+  def view_template(&block)
+    div(**mix(base_attributes, @attributes), &block)
+  end
+
+  private
+
+  def base_attributes
+    {
+      class: "dropdown",
+      data: {
+        controller: "dropdown",
+        dropdown_open_class: "show"
+      }
+    }
+  end
+end
+
+render Dropdown.new(
+  class: "dropdown-right",
+  data: {
+    action: "click->dropdown#toggle",
+    dropdown_close_on_click_away_value: true
+  }
+)
+
+# Result:
+# <div class="dropdown dropdown-right"
+#      data-controller="dropdown"
+#      data-dropdown-open-class="show"
+#      data-action="click->dropdown#toggle"
+#      data-dropdown-close-on-click-away-value="true">
+```
+
+<Tip>
+Use `mix` liberally when building component libraries. It makes your components much more flexible while maintaining sensible defaults.
+</Tip>
+
+## Type Compatibility Table
+
+| Type 1 | Type 2 | Result |
+|--------|--------|--------|
+| String | String | Strings joined with space |
+| String | Array  | Array with string prepended |
+| String | Set    | Array with string prepended |
+| Array  | Array  | Arrays concatenated |
+| Array  | Set    | Array with set items appended |
+| Set    | Set    | Sets merged |
+| Hash   | Hash   | Hashes recursively merged |
+| Any    | nil    | Original value preserved |
+| nil    | Any    | New value used |
+
+<Note>
+When mixing incompatible types not in this table, the second value takes precedence.
+</Note>

@@ -1,0 +1,261 @@
+---
+title: Installation
+description: Add Phlex to your Ruby project and start building components
+---
+
+## Requirements
+
+Before installing Phlex, ensure your environment meets these requirements:
+
+<Card>
+  **Ruby Version**: 3.2 or higher required
+  
+  Check your Ruby version:
+  ```bash
+  ruby -v
+  ```
+</Card>
+
+## Installation Methods
+
+<Tabs>
+  <Tab title="Bundler">
+    ### Using Bundler (Recommended)
+
+    Add Phlex to your `Gemfile`:
+
+    ```ruby Gemfile
+    gem "phlex", "~> 2.4"
+    ```
+
+    Then install:
+
+    ```bash
+    bundle install
+    ```
+
+    <Tip>
+      Using a version constraint like `"~> 2.4"` ensures you get patch updates while avoiding breaking changes.
+    </Tip>
+  </Tab>
+
+  <Tab title="gem install">
+    ### Direct Installation
+
+    Install Phlex directly using RubyGems:
+
+    ```bash
+    gem install phlex
+    ```
+
+    <Note>
+      This installs Phlex globally. For project-specific installations, use Bundler instead.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Framework Integration
+
+### Ruby on Rails
+
+<Steps>
+  <Step title="Add to Gemfile">
+    ```ruby Gemfile
+    gem "phlex", "~> 2.4"
+    gem "phlex-rails" # Optional: Rails-specific helpers
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    ```bash
+    bundle install
+    ```
+  </Step>
+
+  <Step title="Create components directory">
+    ```bash
+    mkdir -p app/views/components
+    ```
+  </Step>
+
+  <Step title="Configure autoloading">
+    Rails will automatically autoload components from `app/views/components` in Rails 7+.
+    
+    For earlier versions, add to `config/application.rb`:
+    ```ruby
+    config.autoload_paths << Rails.root.join("app/views/components")
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+  Consider using [phlex-rails](https://github.com/phlex-ruby/phlex-rails) for Rails-specific features like automatic layout rendering and helper method integration.
+</Tip>
+
+### Sinatra
+
+<Steps>
+  <Step title="Add to Gemfile">
+    ```ruby Gemfile
+    gem "phlex", "~> 2.4"
+    ```
+  </Step>
+
+  <Step title="Install">
+    ```bash
+    bundle install
+    ```
+  </Step>
+
+  <Step title="Require in your app">
+    ```ruby app.rb
+    require "sinatra"
+    require "phlex"
+
+    class Layout < Phlex::HTML
+      def view_template(&block)
+        html do
+          head { title { "My Sinatra App" } }
+          body(&block)
+        end
+      end
+    end
+
+    get "/" do
+      Layout.new.call do
+        h1 { "Hello from Phlex!" }
+      end
+    end
+    ```
+  </Step>
+</Steps>
+
+### Hanami
+
+<Steps>
+  <Step title="Add to Gemfile">
+    ```ruby Gemfile
+    gem "phlex", "~> 2.4"
+    ```
+  </Step>
+
+  <Step title="Install">
+    ```bash
+    bundle install
+    ```
+  </Step>
+
+  <Step title="Create views in slices">
+    ```ruby slices/main/views/home/index.rb
+    module Main
+      module Views
+        module Home
+          class Index < Phlex::HTML
+            def view_template
+              h1 { "Welcome to Hanami with Phlex" }
+            end
+          end
+        end
+      end
+    end
+    ```
+  </Step>
+</Steps>
+
+## Verify Installation
+
+Create a simple test file to verify Phlex is working:
+
+```ruby test_phlex.rb
+require "phlex"
+
+class HelloWorld < Phlex::HTML
+  def view_template
+    html do
+      head { title { "Test" } }
+      body do
+        h1 { "Phlex is working!" }
+      end
+    end
+  end
+end
+
+puts HelloWorld.call
+```
+
+Run it:
+
+```bash
+ruby test_phlex.rb
+```
+
+You should see:
+
+```html
+<html><head><title>Test</title></head><body><h1>Phlex is working!</h1></body></html>
+```
+
+<Check>
+  Installation successful! Phlex is ready to use.
+</Check>
+
+## Dependencies
+
+Phlex automatically installs these dependencies:
+
+<AccordionGroup>
+  <Accordion title="zeitwerk (~> 2.7)">
+    Provides efficient autoloading for Phlex's internal modules and your component classes.
+    
+    [Learn more about Zeitwerk](https://github.com/fxn/zeitwerk)
+  </Accordion>
+
+  <Accordion title="refract (~> 1.0)">
+    Enables efficient rendering and buffer management for optimal performance.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Ruby version error">
+    **Error**: `required_ruby_version (>= 3.2) not satisfied`
+    
+    **Solution**: Upgrade Ruby to version 3.2 or higher:
+    ```bash
+    # Using rbenv
+    rbenv install 3.2.0
+    rbenv local 3.2.0
+
+    # Using rvm
+    rvm install 3.2.0
+    rvm use 3.2.0
+    ```
+  </Accordion>
+
+  <Accordion title="LoadError: cannot load such file">
+    **Error**: `LoadError: cannot load such file -- phlex`
+    
+    **Solution**: Make sure you've run `bundle install` or the gem is in your load path:
+    ```bash
+    bundle install
+    # or
+    gem install phlex
+    ```
+  </Accordion>
+
+  <Accordion title="Autoloading issues in Rails">
+    **Problem**: Components not found or not reloading in development
+    
+    **Solution**: Ensure your components directory is in the autoload path:
+    ```ruby config/application.rb
+    config.autoload_paths << Rails.root.join("app/views/components")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<Card title="Build Your First Component" icon="rocket" href="/quickstart">
+  Now that Phlex is installed, create your first component and learn the core concepts.
+</Card>

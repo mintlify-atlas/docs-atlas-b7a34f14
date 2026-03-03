@@ -1,0 +1,146 @@
+---
+title: Introduction to Phlex
+description: Build fast, object-oriented HTML, SVG, and CSV views in pure Ruby
+---
+
+<img
+  className="block dark:hidden"
+  src="/images/hero-light.svg"
+  alt="Phlex Hero Light"
+/>
+<img
+  className="hidden dark:block"
+  src="/images/hero-dark.svg"
+  alt="Phlex Hero Dark"
+/>
+
+## What is Phlex?
+
+Phlex is a Ruby gem that lets you build object-oriented web views in pure Ruby. Instead of mixing Ruby code with template languages, you write everything in Ruby using a clean, intuitive DSL.
+
+```ruby
+class ArticleComponent < Phlex::HTML
+  def initialize(title:)
+    @title = title
+  end
+
+  def view_template
+    article do
+      h1(class: "text-2xl font-bold") { @title }
+      p { "Welcome to Phlex!" }
+    end
+  end
+end
+
+ArticleComponent.new(title: "Hello World").call
+# => <article><h1 class="text-2xl font-bold">Hello World</h1><p>Welcome to Phlex!</p></article>
+```
+
+## Why Phlex?
+
+<CardGroup cols={2}>
+  <Card title="Pure Ruby" icon="gem">
+    No template language to learn. Use Ruby's full power including classes, modules, and inheritance for your views.
+  </Card>
+  <Card title="Object-Oriented" icon="cube">
+    Build reusable components with proper encapsulation. Pass data through initializers, not magic variables.
+  </Card>
+  <Card title="Type-Safe" icon="shield-check">
+    Leverage Ruby's type system and tools like Sorbet or RBS. Get autocomplete and type checking in your views.
+  </Card>
+  <Card title="Lightning Fast" icon="bolt">
+    Optimized for performance with attribute caching and efficient buffer management. Faster than ERB or Haml.
+  </Card>
+</CardGroup>
+
+## Key Features
+
+### Component-Based Architecture
+
+Every view is a Ruby class that inherits from `Phlex::HTML`, `Phlex::SVG`, or `Phlex::CSV`. This gives you:
+
+- **Encapsulation**: Components manage their own state through instance variables
+- **Reusability**: Compose components together like building blocks
+- **Testability**: Unit test your views like any other Ruby class
+
+### Clean Attribute Syntax
+
+Phlex provides an elegant API for HTML attributes with automatic safety features:
+
+```ruby
+class ButtonComponent < Phlex::HTML
+  def view_template
+    button(
+      class: "btn btn-primary",
+      data: { controller: "button", action: "click->button#toggle" },
+      disabled: true
+    ) { "Click me" }
+  end
+end
+```
+
+<Note>
+  Phlex automatically converts underscores to dashes in attribute names and provides XSS protection.
+</Note>
+
+### Flexible Rendering
+
+Render components in multiple ways:
+
+<CodeGroup>
+
+```ruby Class Method
+ArticleComponent.call(title: "Hello")
+```
+
+```ruby Instance Method
+ArticleComponent.new(title: "Hello").call
+```
+
+```ruby Inline Block
+Phlex.html do
+  h1 { "Quick HTML" }
+  p { "No class needed" }
+end
+```
+
+</CodeGroup>
+
+## What You Can Build
+
+<CardGroup cols={3}>
+  <Card title="HTML Views" icon="code">
+    Full HTML documents with doctype, meta tags, and semantic markup.
+  </Card>
+  <Card title="SVG Graphics" icon="draw-polygon">
+    Scalable vector graphics with the same clean Ruby syntax.
+  </Card>
+  <Card title="CSV Exports" icon="file-csv">
+    Generate CSV files with proper escaping and formatting.
+  </Card>
+</CardGroup>
+
+## Requirements
+
+<Warning>
+  Phlex requires **Ruby 3.2 or higher**. Make sure your Ruby version is up to date.
+</Warning>
+
+Phlex has minimal dependencies:
+- `zeitwerk` (~> 2.7) - For autoloading
+- `refract` (~> 1.0) - For efficient rendering
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Add Phlex to your project and configure your environment
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Build your first component in 5 minutes
+  </Card>
+</CardGroup>
+
+<Tip>
+  Ready to dive deeper? Check out the [official Phlex website](https://www.phlex.fun) for advanced patterns and examples.
+</Tip>

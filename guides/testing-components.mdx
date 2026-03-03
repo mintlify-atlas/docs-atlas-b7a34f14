@@ -1,0 +1,387 @@
+---
+title: Testing Components
+description: Learn how to write effective tests for Phlex components using test helpers and best practices
+---
+
+Testing Phlex components is straightforward since they're plain Ruby objects that return strings. You can use any testing framework.
+
+## Basic Component Testing
+
+Test components by calling them and asserting on the output:
+
+```ruby
+require "test_helper"
+
+class ButtonTest < Minitest::Test
+  def test_renders_button
+    output = Button.new("Click me").call
+    assert_equal '<button type="button">Click me</button>', output
+  end
+end
+```
+
+## Testing with Context
+
+Pass context to test components that depend on it:
+
+```ruby
+class HeaderTest < Minitest::Test
+  def test_renders_with_context
+    component = Header.new
+    output = component.call(context: { heading: "Hello, World!" })
+    
+    assert_equal "<h1>Hello, World!</h1>", output
+  end
+
+  def test_uses_current_user_from_context
+    user = User.new(name: "Alice")
+    component = UserMenu.new
+    output = component.call(context: { current_user: user })
+    
+    assert_includes output, "Hello, Alice"
+    assert_includes output, "/logout"
+  end
+end
+```
+
+## Testing Fragments
+
+Test that fragments render correctly:
+
+```ruby
+class PageTest < Minitest::Test
+  def test_full_render
+    output = Page.new.call
+    
+    assert_includes output, "<h1>Before</h1>"
+    assert_includes output, '<h1 id="target">Hello'
+    assert_includes output, "<h1>After</h1>"
+  end
+
+  def test_fragment_render
+    output = Page.new.call(fragments: ["target"])
+    
+    assert_includes output, '<h1 id="target">Hello'
+    refute_includes output, "<h1>Before</h1>"
+    refute_includes output, "<h1>After</h1>"
+  end
+
+  def test_multiple_fragments
+    output = Page.new.call(fragments: ["target", "footer"])
+    
+    assert_includes output, '<h1 id="target">'
+    assert_includes output, '<footer id="footer">'
+    refute_includes output, "<h1>Before</h1>"
+  end
+end
+```
+
+## Testing Attributes
+
+Verify attributes are rendered correctly:
+
+```ruby
+class CardTest < Minitest::Test
+  def test_basic_attributes
+    output = Card.new.call
+    
+    assert_includes output, 'id="main"'
+    assert_includes output, 'class="card"'
+  end
+
+  def test_data_attributes
+    output = Card.new.call
+    
+    assert_includes output, 'data-controller="card"'
+    assert_includes output, 'data-card-id-value="123"'
+  end
+
+  def test_conditional_classes
+    featured_card = Card.new(featured: true).call
+    assert_includes featured_card, 'class="card card-featured"'
+    
+    regular_card = Card.new(featured: false).call
+    refute_includes regular_card, "card-featured"
+  end
+end
+```
+
+## Testing with Mix Helper
+
+Test attribute merging behavior:
+
+```ruby
+class ButtonTest < Minitest::Test
+  def test_merges_classes
+    output = Button.new(class: "custom-class").call { "Click" }
+    
+    assert_includes output, 'class="btn btn-primary custom-class"'
+  end
+
+  def test_merges_data_attributes
+    output = Button.new(
+      data: { action: "click->analytics#track" }
+    ).call { "Click" }
+    
+    assert_includes output, 'data-controller="button"'
+    assert_includes output, 'data-action="click->analytics#track"'
+  end
+
+  def test_override_with_bang
+    output = Button.new(type!: "submit").call { "Submit" }
+    
+    assert_includes output, 'type="submit"'
+    refute_includes output, 'type="button"'
+  end
+end
+```
+
+## Testing Nested Components
+
+Test components that render other components:
+
+```ruby
+class LayoutTest < Minitest::Test
+  def test_renders_header
+    output = Layout.new.call
+    
+    assert_includes output, '<header>'
+    assert_includes output, '<nav>'
+  end
+
+  def test_renders_content_block
+    output = Layout.new.call do
+      div(class: "content") { "Main content" }
+    end
+    
+    assert_includes output, '<div class="content">Main content</div>'
+  end
+
+  def test_passes_context_to_children
+    output = Layout.new.call(context: { current_user: User.new(name: "Bob") })
+    
+    # Header component should have access to current_user
+    assert_includes output, "Hello, Bob"
+  end
+end
+```
+
+## Testing Caching
+
+Verify caching behavior:
+
+```ruby
+class CachedComponentTest < Minitest::Test
+  def setup
+    @cache_store = Phlex::FIFOCacheStore.new
+  end
+
+  def test_caches_output
+    execution_count = 0
+    monitor = -> { execution_count += 1 }
+    
+    component = CachedComponent.new(monitor, cache_store: @cache_store)
+    
+    # First render executes the block
+    component.call
+    assert_equal 1, execution_count
+    
+    # Second render uses cache
+    component.call
+    assert_equal 1, execution_count
+  end
+
+  def test_cache_invalidation
+    component1 = CachedComponent.new(1, cache_store: @cache_store)
+    output1 = component1.call
+    
+    component2 = CachedComponent.new(2, cache_store: @cache_store)
+    output2 = component2.call
+    
+    refute_equal output1, output2
+  end
+
+  def test_fragment_from_cache
+    component = CachedComponent.new(1, cache_store: @cache_store)
+    
+    # Cache the full render
+    full_output = component.call
+    
+    # Render just a fragment from cache
+    fragment_output = component.call(fragments: ["content"])
+    
+    assert_includes full_output, fragment_output
+    refute_equal full_output, fragment_output
+  end
+end
+```
+
+## Testing Conditional Rendering
+
+Test components with conditional logic:
+
+```ruby
+class ConditionalComponentTest < Minitest::Test
+  def test_renders_when_condition_true
+    component = ConditionalComponent.new(show: true)
+    output = component.call
+    
+    assert_includes output, "Visible content"
+  end
+
+  def test_does_not_render_when_condition_false
+    component = ConditionalComponent.new(show: false)
+    output = component.call
+    
+    assert_equal "", output
+  end
+
+  def test_admin_only_content
+    admin = User.new(role: :admin)
+    regular_user = User.new(role: :user)
+    
+    admin_output = Dashboard.new.call(context: { current_user: admin })
+    assert_includes admin_output, "Admin Panel"
+    
+    user_output = Dashboard.new.call(context: { current_user: regular_user })
+    refute_includes user_output, "Admin Panel"
+  end
+end
+```
+
+## Test Helpers
+
+Create reusable test helpers:
+
+```ruby
+module PhlexTestHelper
+  # Render a component with optional context
+  def render(component, context: {}, fragments: nil)
+    component.call(context: context, fragments: fragments)
+  end
+
+  # Assert element exists with attributes
+  def assert_element(output, tag, attributes = {})
+    assert_includes output, "<#{tag}"
+    attributes.each do |key, value|
+      assert_includes output, "#{key}=\"#{value}\""
+    end
+  end
+
+  # Assert element does not exist
+  def refute_element(output, tag)
+    refute_includes output, "<#{tag}"
+  end
+end
+
+class ComponentTest < Minitest::Test
+  include PhlexTestHelper
+
+  def test_with_helper
+    output = render(Button.new("Click"))
+    assert_element output, "button", type: "button"
+  end
+end
+```
+
+## RSpec Examples
+
+Phlex works great with RSpec:
+
+```ruby
+RSpec.describe Button do
+  it "renders a button element" do
+    output = described_class.new("Click me").call
+    expect(output).to include('<button type="button">Click me</button>')
+  end
+
+  it "merges user classes" do
+    output = described_class.new("Click", class: "custom").call
+    expect(output).to include('class="btn btn-primary custom"')
+  end
+
+  context "with variants" do
+    it "renders primary variant" do
+      output = described_class.new("Click", variant: :primary).call
+      expect(output).to include("btn-primary")
+    end
+
+    it "renders danger variant" do
+      output = described_class.new("Click", variant: :danger).call
+      expect(output).to include("btn-danger")
+    end
+  end
+
+  context "with context" do
+    let(:user) { User.new(name: "Alice") }
+
+    it "accesses current user from context" do
+      output = described_class.new.call(context: { current_user: user })
+      expect(output).to include("Alice")
+    end
+  end
+end
+```
+
+## Testing Performance
+
+Measure rendering performance:
+
+```ruby
+class PerformanceTest < Minitest::Test
+  def test_rendering_speed
+    require "benchmark"
+    
+    time = Benchmark.realtime do
+      1000.times { ComplexComponent.new.call }
+    end
+    
+    assert time < 1.0, "Rendering took #{time}s, expected < 1s"
+  end
+
+  def test_caching_improves_performance
+    cache_store = Phlex::FIFOCacheStore.new
+    component = CachedComponent.new(cache_store: cache_store)
+    
+    # First render (no cache)
+    time_without_cache = Benchmark.realtime do
+      100.times { component.call }
+    end
+    
+    # Subsequent renders (with cache)
+    time_with_cache = Benchmark.realtime do
+      100.times { component.call }
+    end
+    
+    assert time_with_cache < time_without_cache
+  end
+end
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Test behavior, not implementation">
+    Focus on the rendered output rather than internal component methods.
+  </Step>
+  
+  <Step title="Use descriptive test names">
+    Make test names clearly describe what they're testing.
+  </Step>
+  
+  <Step title="Test edge cases">
+    Test with nil values, empty strings, and boundary conditions.
+  </Step>
+  
+  <Step title="Keep tests fast">
+    Phlex components are fast - keep your tests fast too by avoiding unnecessary setup.
+  </Step>
+  
+  <Step title="Use test helpers">
+    Extract common assertions and setup into reusable helpers.
+  </Step>
+</Steps>
+
+<Tip>
+  Since Phlex components are just Ruby objects that return strings, you can test them with any testing framework - no special integration required.
+</Tip>

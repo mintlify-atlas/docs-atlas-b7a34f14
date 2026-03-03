@@ -1,0 +1,161 @@
+---
+title: Void HTML Elements
+description: Reference for all void (self-closing) HTML element methods in Phlex
+---
+
+Void HTML elements don't accept content and never have a closing tag. They are self-closing and only accept attributes.
+
+## Usage
+
+All void element methods follow this signature:
+
+```ruby
+element_name(**attributes)
+```
+
+Note that void elements do not accept a block for content.
+
+### Examples
+
+```ruby
+class MyView < Phlex::HTML
+  def view_template
+    # Images
+    img(src: "/logo.png", alt: "Company Logo")
+    
+    # Line breaks
+    p do
+      plain "First line"
+      br
+      plain "Second line"
+    end
+    
+    # Form inputs
+    input(type: "text", name: "username", placeholder: "Enter username")
+    input(type: "email", name: "email", required: true)
+  end
+end
+```
+
+```ruby
+# Document metadata
+head do
+  meta(charset: "utf-8")
+  meta(name: "viewport", content: "width=device-width, initial-scale=1")
+  link(rel: "stylesheet", href: "/styles.css")
+end
+```
+
+```ruby
+# Horizontal rule
+hr(class: "my-4")
+
+# Base URL
+base(href: "https://example.com/")
+```
+
+## Available Elements
+
+| Element | Description | MDN Docs | Spec |
+|---------|-------------|----------|------|
+| `area` | Image map area | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/area) | [Spec](https://html.spec.whatwg.org/#the-area-element) |
+| `base` | Base URL for relative URLs | [MDN](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base) | [Spec](https://html.spec.whatwg.org/#the-base-element) |
+| `br` | Line break | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/br) | [Spec](https://html.spec.whatwg.org/#the-br-element) |
+| `col` | Table column | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/col) | [Spec](https://html.spec.whatwg.org/#the-col-element) |
+| `embed` | External content | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/embed) | [Spec](https://html.spec.whatwg.org/#the-embed-element) |
+| `hr` | Horizontal rule / thematic break | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/hr) | [Spec](https://html.spec.whatwg.org/#the-hr-element) |
+| `img` | Image | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/img) | [Spec](https://html.spec.whatwg.org/#the-img-element) |
+| `input` | Form input | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/input) | [Spec](https://html.spec.whatwg.org/#the-input-element) |
+| `link` | External resource link | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/link) | [Spec](https://html.spec.whatwg.org/#the-link-element) |
+| `meta` | Metadata | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/meta) | [Spec](https://html.spec.whatwg.org/#the-meta-element) |
+| `source` | Media source | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/source) | [Spec](https://html.spec.whatwg.org/#the-source-element) |
+| `track` | Text track for media | [MDN](https://developer.mozilla.org/docs/Web/HTML/Element/track) | [Spec](https://html.spec.whatwg.org/#the-track-element) |
+
+## Total Count
+
+**12 void HTML elements** are available in Phlex.
+
+## Common Use Cases
+
+### Images with Attributes
+
+```ruby
+img(
+  src: "/photos/product.jpg",
+  alt: "Product photo",
+  width: 800,
+  height: 600,
+  loading: "lazy"
+)
+```
+
+### Form Inputs
+
+```ruby
+form do
+  input(type: "text", name: "username", placeholder: "Username", required: true)
+  input(type: "password", name: "password", placeholder: "Password")
+  input(type: "submit", value: "Login")
+end
+```
+
+### Document Head Elements
+
+```ruby
+head do
+  meta(charset: "utf-8")
+  meta(name: "viewport", content: "width=device-width, initial-scale=1")
+  meta(name: "description", content: "Page description")
+  link(rel: "stylesheet", href: "/app.css")
+  link(rel: "icon", href: "/favicon.ico")
+end
+```
+
+### Media Elements
+
+```ruby
+# Picture with sources
+picture do
+  source(srcset: "/image.webp", type: "image/webp")
+  source(srcset: "/image.jpg", type: "image/jpeg")
+  img(src: "/image.jpg", alt: "Fallback")
+end
+
+# Video with track
+video(controls: true) do
+  source(src: "/video.mp4", type: "video/mp4")
+  track(kind: "subtitles", src: "/subtitles.vtt", srclang: "en")
+end
+```
+
+### Table Columns
+
+```ruby
+table do
+  colgroup do
+    col(style: "width: 30%")
+    col(style: "width: 70%")
+  end
+  # ... table content
+end
+```
+
+## Important Notes
+
+<Warning>
+  Void elements do not accept blocks or content. Attempting to pass a block to a void element will result in an error.
+</Warning>
+
+```ruby
+# INCORRECT - Will not work
+img(src: "/photo.jpg") { "Alt text" }
+
+# CORRECT - Use attributes only
+img(src: "/photo.jpg", alt: "Alt text")
+```
+
+## See Also
+
+- [Standard HTML Elements](/api/html-standard-elements) - Elements with closing tags
+- [Attributes](/guides/attributes-and-styling) - Learn about HTML attributes in Phlex
+- [WHATWG HTML Spec](https://html.spec.whatwg.org/) - Official HTML specification

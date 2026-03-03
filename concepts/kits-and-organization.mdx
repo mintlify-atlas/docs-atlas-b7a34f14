@@ -1,0 +1,467 @@
+---
+title: 'Kits and Organization'
+description: 'Using Phlex::Kit to organize and share component libraries'
+---
+
+## Overview
+
+`Phlex::Kit` is a powerful feature for organizing components into reusable libraries. It provides automatic component registration, lazy loading, and convenient rendering methods.
+
+## Creating a Kit
+
+A kit is a Ruby module extended with `Phlex::Kit`:
+
+```ruby
+module MyComponents
+  extend Phlex::Kit
+end
+```
+
+That's it! Your kit is ready to use.
+
+## Defining Components in a Kit
+
+Define component classes as constants in your kit module:
+
+```ruby
+module MyComponents
+  extend Phlex::Kit
+
+  class Button < Phlex::HTML
+    def initialize(text)
+      @text = text
+    end
+
+    def view_template
+      button(class: "btn") { @text }
+    end
+  end
+
+  class Card < Phlex::HTML
+    def view_template(&block)
+      div(class: "card", &block)
+    end
+  end
+end
+```
+
+<Info>
+When you add a Phlex component class to a kit, the kit automatically creates a helper method with the same name (in PascalCase).
+</Info>
+
+## Using Kit Components
+
+Kit components are automatically included in any component that includes the kit:
+
+```ruby
+class MyPage < Phlex::HTML
+  include MyComponents
+
+  def view_template
+    Card do
+      h2 { "Welcome" }
+      Button("Click Me")
+    end
+  end
+end
+```
+
+Notice:
+- `Card` is called with a block (like a normal element)
+- `Button` is called with arguments
+- No need to use `render` or `.new`
+
+## How It Works
+
+When you include a kit, it automatically:
+
+1. Includes the kit module in your component
+2. Creates helper methods for each component class
+3. These methods automatically instantiate and render the component
+
+So this:
+
+```ruby
+Button("Click Me")
+```
+
+Is equivalent to:
+
+```ruby
+render MyComponents::Button.new("Click Me")
+```
+
+## Organizing with Namespaces
+
+Create nested modules for organization:
+
+```ruby
+module MyComponents
+  extend Phlex::Kit
+
+  module Forms
+    extend Phlex::Kit
+
+    class Input < Phlex::HTML
+      def initialize(name:, type: "text")
+        @name = name
+        @type = type
+      end
+
+      def view_template
+        input(type: @type, name: @name, class: "form-input")
+      end
+    end
+
+    class TextArea < Phlex::HTML
+      def initialize(name:)
+        @name = name
+      end
+
+      def view_template
+        textarea(name: @name, class: "form-textarea")
+      end
+    end
+  end
+
+  module Buttons
+    extend Phlex::Kit
+
+    class Primary < Phlex::HTML
+      def initialize(text)
+        @text = text
+      end
+
+      def view_template
+        button(class: "btn btn-primary") { @text }
+      end
+    end
+  end
+end
+```
+
+Use nested components:
+
+```ruby
+class ContactForm < Phlex::HTML
+  include MyComponents
+
+  def view_template
+    form do
+      Forms::Input(name: "email", type: "email")
+      Forms::TextArea(name: "message")
+      Buttons::Primary("Send")
+    end
+  end
+end
+```
+
+## Lazy Loading
+
+Kits support lazy loading with autoload:
+
+```ruby
+module MyComponents
+  extend Phlex::Kit
+
+  autoload :Button, "my_components/button"
+  autoload :Card, "my_components/card"
+  autoload :Forms, "my_components/forms"
+end
+```
+
+Components are loaded only when first used.
+
+## File Structure
+
+Organize your kit with a clear file structure:
+
+```
+lib/
+  my_components/
+    button.rb
+    card.rb
+    forms/
+      input.rb
+      text_area.rb
+    buttons/
+      primary.rb
+      secondary.rb
+  my_components.rb
+```
+
+<Tabs>
+  <Tab title="my_components.rb">
+    ```ruby
+    module MyComponents
+      extend Phlex::Kit
+
+      autoload :Button, "my_components/button"
+      autoload :Card, "my_components/card"
+      autoload :Forms, "my_components/forms"
+      autoload :Buttons, "my_components/buttons"
+    end
+    ```
+  </Tab>
+  <Tab title="my_components/button.rb">
+    ```ruby
+    module MyComponents
+      class Button < Phlex::HTML
+        def initialize(text, **attributes)
+          @text = text
+          @attributes = attributes
+        end
+
+        def view_template
+          button(**mix({ class: "btn" }, @attributes)) do
+            @text
+          end
+        end
+      end
+    end
+    ```
+  </Tab>
+  <Tab title="my_components/forms.rb">
+    ```ruby
+    module MyComponents
+      module Forms
+        extend Phlex::Kit
+
+        autoload :Input, "my_components/forms/input"
+        autoload :TextArea, "my_components/forms/text_area"
+      end
+    end
+    ```
+  </Tab>
+</Tabs>
+
+## Sharing Behavior
+
+Kits automatically include themselves in component classes defined within them:
+
+```ruby
+module MyComponents
+  extend Phlex::Kit
+
+  class Card < Phlex::HTML
+    def view_template(&block)
+      div(class: "card") do
+        # Can use other components from the kit
+        CardHeader do
+          yield
+        end
+      end
+    end
+  end
+
+  class CardHeader < Phlex::HTML
+    def view_template(&block)
+      div(class: "card-header", &block)
+    end
+  end
+end
+```
+
+The `Card` component can directly use `CardHeader` because the kit is automatically included.
+
+## Multiple Kits
+
+Include multiple kits in a component:
+
+```ruby
+module UIComponents
+  extend Phlex::Kit
+
+  class Button < Phlex::HTML
+    def view_template
+      button(class: "ui-button") { "UI Button" }
+    end
+  end
+end
+
+module Icons
+  extend Phlex::Kit
+
+  class Star < Phlex::SVG
+    def view_template
+      svg(viewBox: "0 0 24 24") do
+        path(d: "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z")
+      end
+    end
+  end
+end
+
+class MyPage < Phlex::HTML
+  include UIComponents
+  include Icons
+
+  def view_template
+    div do
+      Button
+      Star
+    end
+  end
+end
+```
+
+## Kit Best Practices
+
+### 1. One Kit Per Library
+
+Create separate kits for different component libraries:
+
+```ruby
+module DesignSystem
+  extend Phlex::Kit
+  # Your design system components
+end
+
+module AdminComponents
+  extend Phlex::Kit
+  # Admin-specific components
+end
+```
+
+### 2. Use Namespaces for Categories
+
+```ruby
+module DesignSystem
+  extend Phlex::Kit
+
+  module Layout
+    extend Phlex::Kit
+  end
+
+  module Forms
+    extend Phlex::Kit
+  end
+
+  module Navigation
+    extend Phlex::Kit
+  end
+end
+```
+
+### 3. Document Your Kit
+
+```ruby
+# MyComponents Kit
+#
+# A collection of reusable UI components.
+#
+# Usage:
+#   class MyPage < Phlex::HTML
+#     include MyComponents
+#
+#     def view_template
+#       Button("Click me")
+#     end
+#   end
+module MyComponents
+  extend Phlex::Kit
+end
+```
+
+### 4. Use Autoload for Large Kits
+
+For kits with many components, use autoload to avoid loading everything upfront:
+
+```ruby
+module LargeKit
+  extend Phlex::Kit
+
+  autoload :Component1, "large_kit/component1"
+  autoload :Component2, "large_kit/component2"
+  # ... 100 more components
+end
+```
+
+## Distributing Kits
+
+Package your kit as a gem:
+
+```ruby
+# my_components.gemspec
+Gem::Specification.new do |spec|
+  spec.name = "my_components"
+  spec.version = "1.0.0"
+  spec.summary = "Reusable Phlex components"
+  spec.files = Dir["lib/**/*.rb"]
+  
+  spec.add_dependency "phlex", "~> 2.0"
+end
+```
+
+Users can then:
+
+```ruby
+# Gemfile
+gem "my_components"
+
+# In their components
+class MyPage < Phlex::HTML
+  include MyComponents
+
+  def view_template
+    Button("Click Me")
+  end
+end
+```
+
+<Tip>
+Kits are perfect for:
+- Design systems
+- Component libraries
+- Shared UI patterns across projects
+- Distributing reusable components as gems
+</Tip>
+
+## Calling Kit Components Outside Rendering
+
+You can call kit components from outside a rendering context:
+
+```ruby
+module MyComponents
+  extend Phlex::Kit
+
+  class Button < Phlex::HTML
+    def initialize(text)
+      @text = text
+    end
+
+    def view_template
+      button { @text }
+    end
+  end
+end
+
+# From outside a component (within a rendering context)
+MyComponents::Button("Click")
+```
+
+<Warning>
+Calling kit components as module methods only works within a Phlex rendering context (e.g., inside another component's `view_template`). Outside of rendering, you must instantiate and call components normally:
+
+```ruby
+MyComponents::Button.new("Click").call
+```
+</Warning>
+
+## Error Handling
+
+Phlex::Kit validates that you're extending modules, not classes:
+
+```ruby
+class InvalidKit
+  extend Phlex::Kit # Raises Phlex::ArgumentError
+end
+
+# Error message:
+# `Phlex::Kit` was extended into InvalidKit.
+# You should only extend modules with `Phlex::Kit`
+# as it is not compatible with classes.
+```
+
+<Note>
+Only extend modules with `Phlex::Kit`. Classes are not supported.
+</Note>

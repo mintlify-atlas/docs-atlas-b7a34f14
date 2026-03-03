@@ -1,0 +1,354 @@
+---
+title: 'HTML Views'
+description: 'Building HTML views with Phlex::HTML'
+---
+
+## Overview
+
+`Phlex::HTML` is the base class for building HTML views in Phlex. It provides methods for all standard and void HTML elements, plus utilities for working with HTML-specific features.
+
+## Basic HTML Component
+
+```ruby
+class MyPage < Phlex::HTML
+  def view_template
+    html do
+      head do
+        title { "My Page" }
+      end
+      body do
+        h1 { "Welcome" }
+        p { "Hello, World!" }
+      end
+    end
+  end
+end
+```
+
+## HTML Doctype
+
+Use the `doctype` method to output an HTML5 doctype:
+
+```ruby
+def view_template
+  doctype
+  html do
+    # ...
+  end
+end
+```
+
+This outputs:
+
+```html
+<!doctype html>
+<html>...</html>
+```
+
+## Element Methods
+
+### Standard Elements
+
+Standard HTML elements have opening and closing tags:
+
+```ruby
+div do
+  p { "A paragraph" }
+  span { "A span" }
+end
+```
+
+### Void Elements
+
+Void elements don't have closing tags and cannot have content:
+
+```ruby
+input type: "text", name: "username"
+br
+hr
+img src: "/logo.png", alt: "Logo"
+```
+
+<Warning>
+Void elements like `input`, `br`, `hr`, and `img` cannot accept blocks. This will raise an error:
+
+```ruby
+input { "Invalid!" } # Raises Phlex::ArgumentError
+```
+</Warning>
+
+## Attributes
+
+### Basic Attributes
+
+Pass attributes as keyword arguments:
+
+```ruby
+div id: "main", class: "container" do
+  p { "Content" }
+end
+```
+
+### Boolean Attributes
+
+Use `true` for boolean attributes:
+
+```ruby
+input type: "checkbox", checked: true, disabled: false
+# Only outputs: <input type="checkbox" checked>
+```
+
+### Data Attributes
+
+Use nested hashes for data attributes:
+
+```ruby
+div data: { controller: "dropdown", action: "click->dropdown#toggle" } do
+  # ...
+end
+# => <div data-controller="dropdown" data-action="click->dropdown#toggle">
+```
+
+### Aria Attributes
+
+Similarly for ARIA attributes:
+
+```ruby
+button aria: { label: "Close", expanded: true } do
+  "×"
+end
+# => <button aria-label="Close" aria-expanded="true">×</button>
+```
+
+### Class Arrays
+
+Pass classes as strings, arrays, or sets:
+
+```ruby
+# String
+div class: "btn btn-primary"
+
+# Array
+div class: ["btn", "btn-primary"]
+
+# Conditional classes
+active = true
+div class: ["btn", active ? "active" : nil]
+```
+
+## Dynamic Tags
+
+Use the `tag` method for dynamic tag names:
+
+```ruby
+def heading(level:, text:)
+  tag_name = "h#{level}".to_sym
+  tag(tag_name) { text }
+end
+
+heading(level: 2, text: "Subtitle")
+# => <h2>Subtitle</h2>
+```
+
+<Info>
+The `tag` method accepts any valid HTML tag name as a symbol. For custom elements with hyphens, use underscores:
+
+```ruby
+tag(:my_custom_element) # => <my-custom-element>
+```
+</Info>
+
+## Text Output
+
+### Plain Text
+
+Use `plain` for plain text that gets HTML-escaped:
+
+```ruby
+p do
+  plain "<script>alert('xss')</script>"
+end
+# => <p>&lt;script&gt;alert('xss')&lt;/script&gt;</p>
+```
+
+### Implicit Output
+
+Strings returned from blocks are automatically output and escaped:
+
+```ruby
+p { "Hello, World!" }
+p { user.name } # Automatically escaped
+```
+
+### Raw HTML
+
+Use `raw` to output trusted HTML without escaping:
+
+```ruby
+div do
+  raw safe("<strong>Bold</strong>")
+end
+# => <div><strong>Bold</strong></div>
+```
+
+<Warning>
+Only use `raw` with trusted content marked as safe with the `safe` method. Never use `raw` with user input.
+</Warning>
+
+## Whitespace
+
+Add whitespace with the `whitespace` method:
+
+```ruby
+span { "Hello" }
+whitespace
+span { "World" }
+# => <span>Hello</span> <span>World</span>
+
+# Or wrap content
+whitespace do
+  strong { "Bold" }
+end
+# => <strong>Bold</strong>
+```
+
+## Comments
+
+Add HTML comments:
+
+```ruby
+comment { "TODO: Add navigation" }
+# => <!-- TODO: Add navigation -->
+
+comment do
+  plain "Temporary markup"
+end
+```
+
+## SVG in HTML
+
+Embed SVG directly in HTML views:
+
+```ruby
+class Page < Phlex::HTML
+  def view_template
+    div do
+      svg width: 100, height: 100 do
+        circle cx: 50, cy: 50, r: 40, fill: "red"
+      end
+    end
+  end
+end
+```
+
+When you use `svg` with a block in an HTML view, it automatically switches to SVG rendering context.
+
+## Content Type
+
+Phlex::HTML components have a content type:
+
+```ruby
+MyPage.new.content_type
+# => "text/html"
+```
+
+This is useful when setting HTTP response headers in web frameworks.
+
+## Filename
+
+Optionally provide a filename for downloads:
+
+```ruby
+class Report < Phlex::HTML
+  def filename
+    "report-#{Date.today}.html"
+  end
+
+  def view_template
+    # ...
+  end
+end
+```
+
+## Capturing Content
+
+Capture rendered content as a string:
+
+```ruby
+def view_template
+  captured = capture do
+    h1 { "Title" }
+    p { "Description" }
+  end
+
+  # captured is now a string:
+  # "<h1>Title</h1><p>Description</p>"
+
+  # Use it later
+  div do
+    raw safe(captured)
+  end
+end
+```
+
+<Tabs>
+  <Tab title="Basic Capture">
+    ```ruby
+    content = capture do
+      p { "Hello" }
+    end
+    # content = "<p>Hello</p>"
+    ```
+  </Tab>
+  <Tab title="With Arguments">
+    ```ruby
+    content = capture("World") do |name|
+      p { "Hello, #{name}" }
+    end
+    # content = "<p>Hello, World</p>"
+    ```
+  </Tab>
+</Tabs>
+
+## Fragments
+
+Render specific named fragments selectively:
+
+```ruby
+def view_template
+  fragment(:header) do
+    header { h1 { "Site Title" } }
+  end
+
+  fragment(:content) do
+    main { p { "Main content" } }
+  end
+
+  fragment(:footer) do
+    footer { p { "© 2026" } }
+  end
+end
+
+# Render only specific fragments
+component.call(fragments: [:header, :content])
+```
+
+## Flushing the Buffer
+
+Flush content immediately for streaming:
+
+```ruby
+def view_template
+  p { "First paragraph" }
+  flush # Send to browser immediately
+  
+  sleep 1 # Simulate slow operation
+  
+  p { "Second paragraph" }
+  flush
+end
+```
+
+<Tip>
+Flushing is useful for server-sent events or streaming responses to improve perceived performance.
+</Tip>

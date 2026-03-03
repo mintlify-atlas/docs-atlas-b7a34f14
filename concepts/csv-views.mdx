@@ -1,0 +1,401 @@
+---
+title: 'CSV Views'
+description: 'Building CSV views with Phlex::CSV'
+---
+
+## Overview
+
+`Phlex::CSV` is a specialized class for generating CSV (Comma-Separated Values) files from Ruby collections. Unlike HTML and SVG views, CSV views are initialized with a collection and use `row_template` instead of `view_template`.
+
+## Basic CSV Component
+
+```ruby
+class UsersCSV < Phlex::CSV
+  def initialize(users)
+    super(users)
+  end
+
+  def row_template(user)
+    column "Name", user.name
+    column "Email", user.email
+    column "Created", user.created_at.to_date
+  end
+
+  private
+
+  def escape_csv_injection? = true
+end
+
+users = [
+  User.new(name: "Alice", email: "alice@example.com", created_at: Time.now),
+  User.new(name: "Bob", email: "bob@example.com", created_at: Time.now)
+]
+
+UsersCSV.new(users).call
+```
+
+<Warning>
+You **must** define the `escape_csv_injection?` method in every CSV component. This is a security requirement to prevent CSV injection attacks.
+</Warning>
+
+## The row_template Method
+
+Unlike HTML and SVG which use `view_template`, CSV components use `row_template`:
+
+```ruby
+def row_template(record)
+  column "Header 1", record.field1
+  column "Header 2", record.field2
+  column "Header 3", record.field3
+end
+```
+
+<Info>
+The `row_template` method is called once for each item in the collection. The first call establishes the headers and column order.
+</Info>
+
+## Defining Columns
+
+Use the `column` method to add columns:
+
+```ruby
+class ProductsCSV < Phlex::CSV
+  def row_template(product)
+    column "SKU", product.sku
+    column "Name", product.name
+    column "Price", product.price
+    column "In Stock", product.in_stock? ? "Yes" : "No"
+  end
+
+  private
+
+  def escape_csv_injection? = true
+end
+```
+
+### Column Order
+
+Columns must be defined in the same order for every row:
+
+```ruby
+def row_template(order)
+  column "Order ID", order.id
+  column "Customer", order.customer.name
+  column "Total", order.total
+  # Always use the same order!
+end
+```
+
+<Warning>
+If you define columns in a different order between rows, Phlex will raise a `Phlex::RuntimeError` with a header mismatch error.
+</Warning>
+
+## CSV Injection Protection
+
+CSV injection is a security vulnerability where malicious formulas in CSV cells can execute code when opened in spreadsheet programs.
+
+### Enabling Protection
+
+Set `escape_csv_injection?` to `true`:
+
+```ruby
+class SecureCSV < Phlex::CSV
+  def row_template(record)
+    column "Name", record.name
+    column "Formula", record.formula
+  end
+
+  private
+
+  def escape_csv_injection? = true
+end
+```
+
+With protection enabled, dangerous values are prefixed with a single quote:
+
+```ruby
+# Input: "=1+1"
+# Output: "'=1+1"
+```
+
+### Disabling Protection
+
+For secure system-to-system data exchange:
+
+```ruby
+private
+
+def escape_csv_injection? = false
+```
+
+<Warning>
+Only disable CSV injection protection if:
+- The CSV will never be opened in a spreadsheet program
+- You're doing byte-for-byte data exchange between secure systems
+- You understand the security implications
+</Warning>
+
+### Formula Prefixes
+
+The following characters at the start of a value are considered dangerous:
+- `=` (equals)
+- `+` (plus)
+- `-` (minus)
+- `@` (at sign)
+- `\t` (tab)
+- `\r` (carriage return)
+
+## Headers
+
+### Rendering Headers
+
+By default, headers are rendered as the first row:
+
+```ruby
+UsersCSV.new(users).call
+# Name,Email,Created
+# Alice,alice@example.com,2026-03-03
+# Bob,bob@example.com,2026-03-03
+```
+
+### Disabling Headers
+
+Override `render_headers?` to disable header rendering:
+
+```ruby
+class NoHeadersCSV < Phlex::CSV
+  def row_template(record)
+    column "Name", record.name
+    column "Value", record.value
+  end
+
+  private
+
+  def render_headers? = false
+  def escape_csv_injection? = true
+end
+
+# Output:
+# Alice,100
+# Bob,200
+```
+
+## Custom Delimiters
+
+Change the delimiter from comma to another character:
+
+```ruby
+class TabDelimitedCSV < Phlex::CSV
+  def row_template(record)
+    column "Name", record.name
+    column "Value", record.value
+  end
+
+  def delimiter
+    "\t"
+  end
+
+  private
+
+  def escape_csv_injection? = true
+end
+
+# Call with custom delimiter
+TabDelimitedCSV.new(records).call(delimiter: "\t")
+```
+
+<Info>
+The delimiter must be a single character. Multi-character delimiters will raise an error.
+</Info>
+
+## Whitespace Handling
+
+### Trimming Whitespace
+
+Enable whitespace trimming:
+
+```ruby
+class TrimmedCSV < Phlex::CSV
+  def row_template(record)
+    column "Name", "  #{record.name}  " # Spaces will be trimmed
+  end
+
+  private
+
+  def trim_whitespace? = true
+  def escape_csv_injection? = true
+end
+```
+
+## Custom Collections
+
+Override `each_item` to customize iteration:
+
+```ruby
+class PagedCSV < Phlex::CSV
+  def initialize(collection)
+    super(collection)
+  end
+
+  def row_template(record)
+    column "ID", record.id
+    column "Name", record.name
+  end
+
+  private
+
+  def each_item(&block)
+    # Fetch in batches
+    collection.find_each(batch_size: 1000, &block)
+  end
+
+  def escape_csv_injection? = true
+end
+```
+
+## Lifecycle Hooks
+
+Use `around_row` to wrap row rendering:
+
+```ruby
+class MonitoredCSV < Phlex::CSV
+  def row_template(record)
+    column "Name", record.name
+  end
+
+  def around_row(record)
+    start = Time.now
+    super # Calls row_template and appends the row
+    duration = Time.now - start
+    puts "Row rendered in #{duration}s"
+  end
+
+  private
+
+  def escape_csv_injection? = true
+end
+```
+
+<Info>
+The `around_row` method wraps the row rendering. You must call `super` to actually render the row.
+</Info>
+
+## Content Type
+
+CSV components have the appropriate content type:
+
+```ruby
+UsersCSV.new(users).content_type
+# => "text/csv"
+```
+
+## Filename
+
+Provide a filename for CSV downloads:
+
+```ruby
+class ReportCSV < Phlex::CSV
+  def filename
+    "report-#{Date.today}.csv"
+  end
+
+  def row_template(record)
+    column "Date", record.date
+    column "Amount", record.amount
+  end
+
+  private
+
+  def escape_csv_injection? = true
+end
+
+# In a Rails controller
+def export
+  csv = ReportCSV.new(@records)
+  send_data csv.call,
+            filename: csv.filename,
+            type: csv.content_type
+end
+```
+
+## Complete Example
+
+<Tabs>
+  <Tab title="Model">
+    ```ruby
+    class Order
+      attr_reader :id, :customer_name, :total, :status, :created_at
+
+      def initialize(id:, customer_name:, total:, status:, created_at:)
+        @id = id
+        @customer_name = customer_name
+        @total = total
+        @status = status
+        @created_at = created_at
+      end
+    end
+    ```
+  </Tab>
+  <Tab title="CSV Component">
+    ```ruby
+    class OrdersCSV < Phlex::CSV
+      def initialize(orders)
+        super(orders)
+      end
+
+      def filename
+        "orders-#{Date.today}.csv"
+      end
+
+      def row_template(order)
+        column "Order ID", order.id
+        column "Customer", order.customer_name
+        column "Total", format_currency(order.total)
+        column "Status", order.status.upcase
+        column "Date", order.created_at.strftime("%Y-%m-%d")
+      end
+
+      private
+
+      def format_currency(amount)
+        "$#{'%.2f' % amount}"
+      end
+
+      def escape_csv_injection? = true
+      def trim_whitespace? = true
+    end
+    ```
+  </Tab>
+  <Tab title="Usage">
+    ```ruby
+    orders = [
+      Order.new(
+        id: 1001,
+        customer_name: "Alice",
+        total: 99.99,
+        status: "completed",
+        created_at: Time.now
+      ),
+      Order.new(
+        id: 1002,
+        customer_name: "Bob",
+        total: 149.50,
+        status: "pending",
+        created_at: Time.now
+      )
+    ]
+
+    csv = OrdersCSV.new(orders)
+    puts csv.call
+
+    # Output:
+    # Order ID,Customer,Total,Status,Date
+    # 1001,Alice,$99.99,COMPLETED,2026-03-03
+    # 1002,Bob,$149.50,PENDING,2026-03-03
+    ```
+  </Tab>
+</Tabs>
+
+<Tip>
+Use CSV components for data exports, reports, and bulk data operations. They handle proper escaping and formatting automatically.
+</Tip>

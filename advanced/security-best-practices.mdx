@@ -1,0 +1,375 @@
+---
+title: Security Best Practices
+description: Prevent XSS attacks, handle untrusted content safely, and avoid CSV injection vulnerabilities in Phlex applications
+---
+
+Phlex is designed with security as a priority. Understanding its security mechanisms helps you build safe applications.
+
+## XSS Prevention
+
+Cross-Site Scripting (XSS) is prevented through automatic HTML escaping of all dynamic content.
+
+### Automatic HTML Escaping
+
+All content rendered in Phlex is automatically HTML-escaped using `ERB::Escape.html_escape`:
+
+```ruby lib/phlex.rb:24
+module Phlex
+  Escape = ERB::Escape
+end
+```
+
+When you render dynamic content, Phlex escapes it:
+
+```ruby lib/phlex/sgml.rb:378
+private def __implicit_output__(content)
+  state = @_state
+  return true unless state.should_render?
+  
+  case content
+  when Phlex::SGML::SafeObject
+    state.buffer << content.to_s
+  when String
+    state.buffer << Phlex::Escape.html_escape(content)
+  when Symbol
+    state.buffer << Phlex::Escape.html_escape(content.name)
+  end
+end
+```
+
+### Example: Safe Rendering
+
+```ruby
+class UserProfile < Phlex::HTML
+  def initialize(user)
+    @user = user
+  end
+  
+  def view_template
+    div do
+      h1 { @user.name } # Automatically escaped
+      p { @user.bio }   # Automatically escaped
+    end
+  end
+end
+
+user = OpenStruct.new(
+  name: '<script>alert("XSS")</script>',
+  bio: '"dangerous" & <harmful>'
+)
+
+UserProfile.new(user).call
+# => <div><h1>&lt;script&gt;alert(&quot;XSS&quot;)&lt;/script&gt;</h1>
+#    <p>&quot;dangerous&quot; &amp; &lt;harmful&gt;</p></div>
+```
+
+<Note>
+HTML escaping is applied to strings, symbols, and formatted objects (integers, floats).
+</Note>
+
+## The `plain` Method
+
+The `plain` method outputs text with HTML escaping, even for safe objects:
+
+```ruby lib/phlex/sgml.rb:106
+def plain(content)
+  unless __text__(content)
+    raise Phlex::ArgumentError.new(
+      "You've passed an object to plain that is not handled by format_object."
+    )
+  end
+  nil
+end
+```
+
+The `__text__` method escapes everything:
+
+```ruby lib/phlex/sgml.rb:396
+private def __text__(content)
+  state = @_state
+  return true unless state.should_render?
+  
+  case content
+  when String
+    state.buffer << Phlex::Escape.html_escape(content)
+  when Symbol
+    state.buffer << Phlex::Escape.html_escape(content.name)
+  else
+    if (formatted_object = format_object(content))
+      state.buffer << Phlex::Escape.html_escape(formatted_object)
+    else
+      return false
+    end
+  end
+end
+```
+
+Use `plain` when you want to ensure content is treated as plain text:
+
+```ruby
+def view_template
+  plain "<b>Bold text</b>"
+end
+# => &lt;b&gt;Bold text&lt;/b&gt;
+```
+
+## The `raw` Method
+
+**Use `raw` with extreme caution.** It bypasses HTML escaping and renders content as-is.
+
+### Safe Usage of `raw`
+
+`raw` only accepts `SafeObject` instances to prevent accidental XSS:
+
+```ruby lib/phlex/sgml.rb:148
+def raw(content)
+  case content
+  when Phlex::SGML::SafeObject
+    state = @_state
+    return unless state.should_render?
+    state.buffer << content.to_s
+  when nil, "" # do nothing
+  else
+    raise Phlex::ArgumentError.new(
+      "You passed an unsafe object to `raw`."
+    )
+  end
+  nil
+end
+```
+
+### Creating Safe Objects
+
+Use the `safe` method to mark strings as safe:
+
+```ruby lib/phlex/sgml.rb:184
+def safe(value)
+  case value
+  when String
+    Phlex::SGML::SafeValue.new(value)
+  else
+    raise Phlex::ArgumentError.new("Expected a String.")
+  end
+end
+```
+
+Example:
+
+```ruby
+class MyComponent < Phlex::HTML
+  def view_template
+    # This is dangerous - only do this with trusted content
+    raw(safe("<strong>Trusted HTML</strong>"))
+  end
+end
+```
+
+<Warning>
+**Never use `raw` with user-generated content.** Only use it for HTML you control, such as:
+- Sanitized markdown output
+- SVG icons from your codebase
+- HTML from trusted sources that you've validated
+</Warning>
+
+### SafeObject Interface
+
+The `SafeObject` module marks objects as safe to render:
+
+```ruby lib/phlex/sgml/safe_object.rb:4
+module Phlex::SGML::SafeObject
+  # This is included in objects that are safe to render in an SGML context.
+  # They must implement a `to_s` method that returns a string.
+end
+```
+
+`SafeValue` wraps safe strings:
+
+```ruby lib/phlex/sgml/safe_value.rb:3
+class Phlex::SGML::SafeValue
+  include Phlex::SGML::SafeObject
+  
+  def initialize(to_s)
+    @to_s = to_s
+  end
+  
+  attr_reader :to_s
+end
+```
+
+## CSV Injection Prevention
+
+CSV injection occurs when spreadsheet formulas are embedded in CSV data and executed when opened in Excel or Google Sheets.
+
+### Mandatory Configuration
+
+Phlex requires you to explicitly configure CSV injection protection:
+
+```ruby lib/phlex/csv.rb:234
+private def ensure_escape_csv_injection_configured!
+  if escape_csv_injection? == UNDEFINED
+    raise <<~MESSAGE
+      You need to define `escape_csv_injection?` in #{self.class.name}.
+      
+      CSV injection is a security vulnerability where malicious spreadsheet
+      formulae are used to execute code or exfiltrate data when a CSV is opened
+      in a spreadsheet program such as Microsoft Excel or Google Sheets.
+      
+      For more information, see https://owasp.org/www-community/attacks/CSV_Injection
+    MESSAGE
+  end
+end
+```
+
+### Enabling CSV Injection Protection
+
+```ruby
+class UserExport < Phlex::CSV
+  def initialize(users)
+    @users = users
+  end
+  
+  # Enable CSV injection escapes
+  private def escape_csv_injection?
+    true
+  end
+  
+  def row_template(user)
+    column "Name", user.name
+    column "Email", user.email
+  end
+end
+```
+
+### How It Works
+
+Phlex escapes dangerous formula prefixes by prepending a single quote:
+
+```ruby lib/phlex/csv.rb:4
+FORMULA_PREFIXES_MAP = Array.new(128).tap do |map|
+  "=+-@\t\r".each_byte do |byte|
+    map[byte] = true
+  end
+end.freeze
+```
+
+The escape logic:
+
+```ruby lib/phlex/csv.rb:194
+if escape_csv_injection
+  first_byte = value.getbyte(0)
+  
+  if value.empty?
+    buffer << '""'
+  elsif FORMULA_PREFIXES_MAP[first_byte]
+    buffer << "'\"" << value.gsub('"', '""') << '"'
+  elsif value.match?(escape_regex)
+    buffer << '"' << value.gsub('"', '""') << '"'
+  else
+    buffer << value
+  end
+end
+```
+
+Dangerous characters:
+- `=` - Formula start
+- `+` - Addition formula
+- `-` - Subtraction formula
+- `@` - Function reference
+- `\t` - Tab (can be used in formulas)
+- `\r` - Carriage return (can be used in formulas)
+
+### Disabling Protection (Dangerous)
+
+Only disable protection when CSVs will never be opened in spreadsheet programs:
+
+```ruby
+class DataExchange < Phlex::CSV
+  # Only do this for machine-to-machine data exchange!
+  private def escape_csv_injection?
+    false
+  end
+end
+```
+
+<Warning>
+Disabling CSV injection protection means your CSV data could be exploited if opened in Excel or Google Sheets. Only disable for byte-for-byte data exchange between secure systems.
+</Warning>
+
+## Attribute Injection
+
+Phlex automatically escapes attribute values, preventing attribute injection attacks:
+
+```ruby
+class LinkComponent < Phlex::HTML
+  def initialize(url, text)
+    @url = url
+    @text = text
+  end
+  
+  def view_template
+    a(href: @url) { @text }
+  end
+end
+
+LinkComponent.new(
+  'javascript:alert("XSS")',
+  'Click me'
+).call
+# => <a href="javascript:alert(&quot;XSS&quot;)">Click me</a>
+```
+
+While the attribute value is escaped, **validate URLs** to prevent `javascript:` protocol attacks:
+
+```ruby
+class LinkComponent < Phlex::HTML
+  ALLOWED_PROTOCOLS = %w[http https mailto].freeze
+  
+  def initialize(url, text)
+    @url = validate_url(url)
+    @text = text
+  end
+  
+  def view_template
+    a(href: @url) { @text }
+  end
+  
+  private def validate_url(url)
+    uri = URI.parse(url)
+    if ALLOWED_PROTOCOLS.include?(uri.scheme)
+      url
+    else
+      "#"
+    end
+  rescue URI::InvalidURIError
+    "#"
+  end
+end
+```
+
+## Security Checklist
+
+<Steps>
+  <Step title="Never use raw with user content">
+    Only use `raw` with trusted, sanitized HTML from your application.
+  </Step>
+  
+  <Step title="Configure CSV injection protection">
+    Always implement `escape_csv_injection?` in CSV classes.
+  </Step>
+  
+  <Step title="Validate URLs in links">
+    Check URL protocols to prevent javascript: and data: attacks.
+  </Step>
+  
+  <Step title="Sanitize rich text">
+    Use a sanitization library like Sanitize or Loofah before rendering user HTML.
+  </Step>
+  
+  <Step title="Review safe method usage">
+    Audit all uses of `safe` to ensure the content is truly safe.
+  </Step>
+</Steps>
+
+## Reporting Security Issues
+
+If you discover a security vulnerability in Phlex, please report it according to the [security policy](https://github.com/phlex-ruby/phlex/security/policy).

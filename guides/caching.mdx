@@ -1,0 +1,205 @@
+---
+title: Caching
+description: Learn how to cache component output using cache and low_level_cache methods for improved performance
+---
+
+Phlex provides powerful caching mechanisms to optimize performance by storing rendered output and reusing it across requests.
+
+## Basic Caching
+
+Use the `cache` method to cache a block of content. Phlex automatically generates a cache key based on your class, method, and line number:
+
+```ruby
+class ProductCard < Phlex::HTML
+  def initialize(product)
+    @product = product
+  end
+
+  def view_template
+    @products.each do |product|
+      cache product do
+        h1 { product.name }
+        p { product.description }
+      end
+    end
+  end
+end
+```
+
+## How Cache Keys Work
+
+Phlex automatically generates cache keys that include:
+
+1. **App version key** - Invalidates cache when deploying new code
+2. **Class name** - Prevents collisions between different classes
+3. **Object ID** (in development with reloading enabled)
+4. **Method name** - Prevents collisions between different methods
+5. **Line number** - Prevents collisions between different cache calls
+6. **Custom keys** - Your provided cache keys (like the product object)
+
+```ruby
+full_key = [
+  app_version_key,
+  self.class.name,
+  (self.class.object_id if enable_cache_reloading?),
+  location.base_label,
+  location.lineno,
+  cache_key
+].freeze
+```
+
+## Low-Level Caching
+
+For full control over the cache key, use `low_level_cache`. This is useful when you want complete responsibility for cache invalidation:
+
+```ruby
+class MarkdownRenderer < Phlex::HTML
+  def initialize(content)
+    @content = content
+  end
+
+  def view_template
+    low_level_cache([Commonmarker::VERSION, Digest::MD5.hexdigest(@content)]) do
+      raw markdown(@content)
+    end
+  end
+
+  private
+
+  def markdown(text)
+    # Convert markdown to HTML
+    Commonmarker.to_html(text)
+  end
+end
+```
+
+<Note>
+  Unlike `cache`, the `low_level_cache` method requires you to pass an array as the cache key. This gives you complete control but also full responsibility for cache invalidation.
+</Note>
+
+## Setting Up a Cache Store
+
+To use caching, you need to implement the `cache_store` method in your component:
+
+```ruby
+class ApplicationComponent < Phlex::HTML
+  private
+
+  def cache_store
+    # Use Rails cache
+    Rails.cache
+  end
+end
+```
+
+### Using Phlex's FIFOCacheStore
+
+Phlex includes a fast in-memory FIFO cache store:
+
+```ruby
+class ApplicationComponent < Phlex::HTML
+  CACHE_STORE = Phlex::FIFOCacheStore.new(max_bytesize: 2 ** 20)
+
+  private
+
+  def cache_store
+    CACHE_STORE
+  end
+end
+```
+
+## Caching with Fragments
+
+Caching works seamlessly with fragment rendering for selective updates:
+
+```ruby
+class PageComponent < Phlex::HTML
+  def initialize(page_id)
+    @page_id = page_id
+  end
+
+  def view_template
+    cache(@page_id) do
+      h1 { "Page #{@page_id}" }
+      
+      fragment("content") do
+        div(id: "page") do
+          cache do
+            section do
+              fragment("list") do
+                ul do
+                  fragment("item") { li { "Item 1" } }
+                  li { "Item 2" }
+                  li { "Item 3" }
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
+  private
+
+  def cache_store
+    @cache_store ||= Phlex::FIFOCacheStore.new
+  end
+end
+```
+
+<Tip>
+  When you render a specific fragment, Phlex can extract it directly from the cached output without re-executing the Ruby code.
+</Tip>
+
+## Cache Reloading in Development
+
+Enable cache reloading during development to automatically invalidate cache when code changes:
+
+```ruby
+class ApplicationComponent < Phlex::HTML
+  private
+
+  def enable_cache_reloading?
+    Rails.env.development?
+  end
+end
+```
+
+## Custom App Version Key
+
+Override the `app_version_key` method to customize cache invalidation on deployment:
+
+```ruby
+class ApplicationComponent < Phlex::HTML
+  private
+
+  def app_version_key
+    ENV["APP_VERSION"] || Phlex::DEPLOYED_AT
+  end
+end
+```
+
+## Performance Considerations
+
+<Steps>
+  <Step title="Choose the right cache store">
+    For development, use `FIFOCacheStore`. In production, consider Redis or Memcached through Rails cache.
+  </Step>
+  
+  <Step title="Cache at the right level">
+    Cache expensive operations like database queries or markdown rendering, not simple HTML.
+  </Step>
+  
+  <Step title="Use cache keys effectively">
+    Pass objects that respond to `cache_key_with_version` or `cache_key` for automatic cache invalidation.
+  </Step>
+  
+  <Step title="Monitor cache size">
+    Set appropriate `max_bytesize` limits to prevent memory issues.
+  </Step>
+</Steps>
+
+<Warning>
+  Caching will raise an error if you haven't implemented the `cache_store` method. Make sure to define it in your base component class.
+</Warning>

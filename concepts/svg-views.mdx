@@ -1,0 +1,336 @@
+---
+title: 'SVG Views'
+description: 'Building SVG views with Phlex::SVG'
+---
+
+## Overview
+
+`Phlex::SVG` is the base class for building SVG (Scalable Vector Graphics) views in Phlex. It provides methods for all standard SVG elements and SVG-specific features.
+
+## Basic SVG Component
+
+```ruby
+class Logo < Phlex::SVG
+  def view_template
+    svg xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 100 100" do
+      circle cx: 50, cy: 50, r: 40, fill: "blue"
+      text x: 50, y: 55, text_anchor: "middle", fill: "white" do
+        "Logo"
+      end
+    end
+  end
+end
+
+Logo.call
+# => <svg xmlns="..." viewBox="0 0 100 100">...</svg>
+```
+
+## SVG Elements
+
+Phlex::SVG provides methods for all standard SVG elements:
+
+### Basic Shapes
+
+```ruby
+class Shapes < Phlex::SVG
+  def view_template
+    svg viewBox: "0 0 200 200" do
+      # Circle
+      circle cx: 50, cy: 50, r: 40, fill: "red"
+      
+      # Rectangle
+      rect x: 110, y: 10, width: 80, height: 80, fill: "blue"
+      
+      # Ellipse
+      ellipse cx: 50, cy: 150, rx: 40, ry: 20, fill: "green"
+      
+      # Line
+      line x1: 110, y1: 110, x2: 190, y2: 190, stroke: "black", stroke_width: 2
+      
+      # Polygon
+      polygon points: "150,150 170,190 130,190", fill: "yellow"
+      
+      # Polyline
+      polyline points: "0,0 20,20 40,10", fill: "none", stroke: "purple"
+    end
+  end
+end
+```
+
+### Paths
+
+Use the `path` element for complex shapes:
+
+```ruby
+class CustomShape < Phlex::SVG
+  def view_template
+    svg viewBox: "0 0 100 100" do
+      path d: "M 10,30 A 20,20 0,0,1 50,30 A 20,20 0,0,1 90,30 Q 90,60 50,90 Q 10,60 10,30 z",
+           fill: "red"
+    end
+  end
+end
+```
+
+## Text in SVG
+
+Add text with the `text` element:
+
+```ruby
+svg viewBox: "0 0 200 100" do
+  text x: 10, y: 30, font_family: "Arial", font_size: 24, fill: "black" do
+    "Hello, SVG!"
+  end
+  
+  # Text with tspan for styling parts
+  text x: 10, y: 60 do
+    tspan fill: "red" do
+      "Red "
+    end
+    tspan fill: "blue" do
+      "Blue"
+    end
+  end
+end
+```
+
+## Grouping with `g`
+
+Group elements together:
+
+```ruby
+class GroupedShapes < Phlex::SVG
+  def view_template
+    svg viewBox: "0 0 100 100" do
+      g transform: "translate(50, 50)" do
+        circle cx: 0, cy: 0, r: 20, fill: "red"
+        circle cx: 30, cy: 0, r: 20, fill: "blue"
+      end
+    end
+  end
+end
+```
+
+## Gradients
+
+Define and use gradients:
+
+```ruby
+class GradientExample < Phlex::SVG
+  def view_template
+    svg viewBox: "0 0 200 100" do
+      defs do
+        linearGradient id: "gradient1", x1: "0%", y1: "0%", x2: "100%", y2: "0%" do
+          stop offset: "0%", stop_color: "red"
+          stop offset: "100%", stop_color: "blue"
+        end
+      end
+      
+      rect x: 10, y: 10, width: 180, height: 80, fill: "url(#gradient1)"
+    end
+  end
+end
+```
+
+## Patterns
+
+Create reusable patterns:
+
+```ruby
+class PatternExample < Phlex::SVG
+  def view_template
+    svg viewBox: "0 0 200 200" do
+      defs do
+        pattern id: "dots", x: 0, y: 0, width: 20, height: 20, patternUnits: "userSpaceOnUse" do
+          circle cx: 10, cy: 10, r: 3, fill: "blue"
+        end
+      end
+      
+      rect width: 200, height: 200, fill: "url(#dots)"
+    end
+  end
+end
+```
+
+## CDATA Sections
+
+Use CDATA for embedding scripts or styles:
+
+```ruby
+class StyledSVG < Phlex::SVG
+  def view_template
+    svg viewBox: "0 0 100 100" do
+      style do
+        cdata <<~CSS
+          .my-shape {
+            fill: red;
+            stroke: black;
+            stroke-width: 2;
+          }
+        CSS
+      end
+      
+      circle class: "my-shape", cx: 50, cy: 50, r: 40
+    end
+  end
+end
+```
+
+<Info>
+The `cdata` method properly escapes CDATA end markers (`]]>`) to prevent breaking out of the CDATA section.
+</Info>
+
+## Dynamic Tags
+
+Use the `tag` method for dynamic SVG elements:
+
+```ruby
+def shape(type:, **attrs)
+  tag(type, **attrs)
+end
+
+shape(type: :circle, cx: 50, cy: 50, r: 40)
+# => <circle cx="50" cy="50" r="40"></circle>
+```
+
+## Attributes with Underscores
+
+SVG attributes with hyphens use underscores in Ruby:
+
+```ruby
+text font_family: "Arial",
+     font_size: 16,
+     text_anchor: "middle",
+     dominant_baseline: "middle" do
+  "Text"
+end
+```
+
+Phlex automatically converts underscores to hyphens:
+
+```html
+<text font-family="Arial" font-size="16" text-anchor="middle" dominant-baseline="middle">Text</text>
+```
+
+## Embedding in HTML
+
+You can use SVG components inside HTML views:
+
+```ruby
+class Logo < Phlex::SVG
+  def view_template
+    svg viewBox: "0 0 100 100" do
+      circle cx: 50, cy: 50, r: 40, fill: "blue"
+    end
+  end
+end
+
+class Page < Phlex::HTML
+  def view_template
+    div class: "header" do
+      render Logo.new
+    end
+  end
+end
+```
+
+Or use the `svg` method directly in HTML:
+
+```ruby
+class Page < Phlex::HTML
+  def view_template
+    div do
+      svg viewBox: "0 0 100 100" do
+        circle cx: 50, cy: 50, r: 40, fill: "blue"
+      end
+    end
+  end
+end
+```
+
+## Content Type
+
+Phlex::SVG components have their own content type:
+
+```ruby
+Logo.new.content_type
+# => "image/svg+xml"
+```
+
+This is useful when serving SVG files directly:
+
+```ruby
+# In a Rails controller
+def logo
+  svg = Logo.new.call
+  render plain: svg, content_type: "image/svg+xml"
+end
+```
+
+## Filename
+
+Provide a filename for SVG downloads:
+
+```ruby
+class Chart < Phlex::SVG
+  def filename
+    "chart-#{Date.today}.svg"
+  end
+
+  def view_template
+    svg viewBox: "0 0 400 300" do
+      # Chart elements...
+    end
+  end
+end
+```
+
+## Reusable SVG Components
+
+Create reusable icon components:
+
+<CodeGroup>
+```ruby Icon Base
+class Icon < Phlex::SVG
+  def initialize(size: 24)
+    @size = size
+  end
+
+  def view_template
+    svg xmlns: "http://www.w3.org/2000/svg",
+        viewBox: "0 0 24 24",
+        width: @size,
+        height: @size,
+        fill: "currentColor" do
+      yield
+    end
+  end
+end
+```
+
+```ruby Heart Icon
+class HeartIcon < Icon
+  def view_template
+    super do
+      path d: "M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+    end
+  end
+end
+```
+
+```ruby Usage
+class Page < Phlex::HTML
+  def view_template
+    button do
+      render HeartIcon.new(size: 20)
+      whitespace
+      plain "Like"
+    end
+  end
+end
+```
+</CodeGroup>
+
+<Tip>
+SVG components are perfect for icon libraries. Create a base icon class with common attributes, then extend it for each specific icon.
+</Tip>

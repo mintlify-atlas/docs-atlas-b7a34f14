@@ -1,0 +1,291 @@
+---
+title: Phlex::Kit
+description: A module for organizing and auto-loading Phlex components in a namespaced structure
+---
+
+## Overview
+
+`Phlex::Kit` is a module that enables you to organize your Phlex components into a namespaced structure with automatic component loading and helper methods. When you extend a module with `Phlex::Kit`, it automatically:
+
+- Creates helper methods for rendering components
+- Includes the kit module in all component classes defined within it
+- Supports lazy loading of components via `autoload`
+- Enables both instance and class-level component invocation
+
+## Usage
+
+```ruby
+module Components
+  extend Phlex::Kit
+
+  autoload :Button, "components/button"
+  autoload :Card, "components/card"
+end
+
+class MyView < Phlex::HTML
+  include Components
+
+  def view_template
+    Button(variant: "primary") { "Click me" }
+    Card(title: "Hello") { "Content" }
+  end
+end
+```
+
+## Behavior
+
+### Automatic Component Methods
+
+When a constant is added to a Kit module (e.g., a component class), `Phlex::Kit` automatically defines:
+
+1. **Instance method** - For rendering within other components
+2. **Singleton method** - For rendering outside a component context
+
+Both methods accept the same arguments as the component's initializer and an optional block.
+
+### Kit Requirements
+
+- **Must be extended into a Module** - `Phlex::Kit` will raise an `ArgumentError` if you try to extend it into a Class
+- **Only works with SGML components** - Component classes must inherit from `Phlex::SGML` (or `Phlex::HTML`, `Phlex::SVG`, etc.)
+
+## Methods
+
+### extended
+
+```ruby
+def self.extended(mod)
+```
+
+Called when `Phlex::Kit` is extended into a module. Validates that the target is a Module (not a Class) and includes the `LazyLoader` module.
+
+<ParamField path="mod" type="Module">
+  The module being extended with `Phlex::Kit`
+</ParamField>
+
+**Raises:** `Phlex::ArgumentError` if `mod` is a Class
+
+### const_added
+
+```ruby
+def const_added(name)
+```
+
+Callback triggered when a constant is added to the Kit module. This method:
+
+- Defines helper methods for component classes that inherit from `Phlex::SGML`
+- Recursively extends nested modules with `Phlex::Kit`
+- Skips autoloaded constants until they're actually loaded
+
+<ParamField path="name" type="Symbol">
+  The name of the constant being added
+</ParamField>
+
+**Behavior:**
+- For SGML component classes: Creates instance and singleton render methods
+- For nested modules: Extends them with `Phlex::Kit`
+- For autoloaded constants: Defers processing until the constant is loaded
+
+### method_missing
+
+```ruby
+def method_missing(name, ...)
+```
+
+Provides lazy loading support for Kit modules. Intercepts method calls for capitalized names that match available constants.
+
+<ParamField path="name" type="Symbol">
+  The method name being called
+</ParamField>
+
+<ParamField path="..." type="various">
+  All arguments and blocks passed to the method
+</ParamField>
+
+**Note:** This is part of the lazy loading mechanism and typically not called directly.
+
+### respond_to_missing?
+
+```ruby
+def respond_to_missing?(name, include_private = false)
+```
+
+Returns true if the method name matches an available component constant.
+
+<ParamField path="name" type="Symbol">
+  The method name to check
+</ParamField>
+
+<ParamField path="include_private" type="Boolean" default="false">
+  Whether to include private methods
+</ParamField>
+
+## LazyLoader Module
+
+The `LazyLoader` module is automatically included in Kit modules and provides instance-level lazy loading support.
+
+### Instance Methods
+
+#### method_missing
+
+```ruby
+def method_missing(name, ...)
+```
+
+Instance-level lazy loading for component methods.
+
+#### respond_to_missing?
+
+```ruby
+def respond_to_missing?(name, include_private = false)
+```
+
+Instance-level method availability checking.
+
+## Examples
+
+### Basic Kit Setup
+
+```ruby
+module UI
+  extend Phlex::Kit
+end
+
+module UI
+  class Button < Phlex::HTML
+    def initialize(variant: "default")
+      @variant = variant
+    end
+
+    def view_template
+      button(class: "btn-#{@variant}") { yield }
+    end
+  end
+end
+
+class Page < Phlex::HTML
+  include UI
+
+  def view_template
+    Button(variant: "primary") { "Submit" }
+  end
+end
+```
+
+### Nested Kits
+
+```ruby
+module Components
+  extend Phlex::Kit
+
+  module Forms
+    class Input < Phlex::HTML
+      def view_template
+        input(type: "text")
+      end
+    end
+  end
+end
+
+class MyForm < Phlex::HTML
+  include Components
+
+  def view_template
+    Forms::Input()
+  end
+end
+```
+
+### With Autoloading
+
+```ruby
+module Components
+  extend Phlex::Kit
+
+  autoload :Header, "components/header"
+  autoload :Footer, "components/footer"
+  autoload :Card, "components/card"
+end
+
+class Layout < Phlex::HTML
+  include Components
+
+  def view_template
+    Header()
+    main { yield }
+    Footer()
+  end
+end
+```
+
+### Class-Level Rendering (Advanced)
+
+```ruby
+module Components
+  extend Phlex::Kit
+
+  class Alert < Phlex::HTML
+    def initialize(message)
+      @message = message
+    end
+
+    def view_template
+      div(class: "alert") { @message }
+    end
+  end
+end
+
+# Within a rendering context
+class Page < Phlex::HTML
+  def view_template
+    div do
+      # This works - we're in a rendering context
+      Components::Alert("Hello")
+    end
+  end
+end
+
+# Outside rendering context
+Components::Alert("Hello")
+# Raises: "You can't call `Alert' outside of a Phlex rendering context."
+```
+
+## Error Handling
+
+### Extending a Class
+
+```ruby
+class MyClass
+  extend Phlex::Kit  # ❌ Raises ArgumentError
+end
+
+# Error message:
+# `Phlex::Kit` was extended into MyClass.
+#
+# You should only extend modules with `Phlex::Kit` as it is not compatible with classes.
+```
+
+### Rendering Outside Context
+
+```ruby
+module Components
+  extend Phlex::Kit
+
+  class Button < Phlex::HTML
+    def view_template
+      button { "Click" }
+    end
+  end
+end
+
+# This will raise an error
+Components::Button()
+# RuntimeError: You can't call `Button' outside of a Phlex rendering context.
+```
+
+## Best Practices
+
+1. **Use with modules only** - Never extend a Class with `Phlex::Kit`
+2. **Organize by feature** - Group related components in the same Kit module
+3. **Leverage autoloading** - Use `autoload` for better performance with many components
+4. **Nest kits for structure** - Create nested Kit modules for complex component libraries
+5. **Include in base classes** - Include your Kit in layout or base components for easy access
